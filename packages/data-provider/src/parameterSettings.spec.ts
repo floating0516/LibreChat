@@ -10,6 +10,7 @@ import {
   paramSettings,
 } from './parameterSettings';
 import type { SettingDefinition } from './generate';
+import type { TModelCapabilitiesConfig } from './models';
 
 const googleParams = paramSettings[EModelEndpoint.google] as SettingDefinition[];
 const openAIParams = paramSettings[EModelEndpoint.openAI] as SettingDefinition[];
@@ -103,6 +104,49 @@ describe('getInlineReasoningConfig', () => {
       'ultra',
     ]);
     expect(resolve(EModelEndpoint.openAI, 'gpt-5.5')?.options).not.toContain('ultra');
+  });
+
+  it('uses live provider metadata before the local compatibility profile', () => {
+    const capabilities: TModelCapabilitiesConfig = {
+      [EModelEndpoint.openAI]: {
+        'gpt-5.6-sol': {
+          parameter: 'reasoning_effort',
+          options: ['', ReasoningEffort.low, ReasoningEffort.ultra],
+        },
+      },
+    };
+
+    expect(
+      getInlineReasoningConfig({
+        endpoint: EModelEndpoint.openAI,
+        model: 'gpt-5.6-sol',
+        capabilities,
+      })?.options,
+    ).toEqual(['', ReasoningEffort.low, ReasoningEffort.ultra]);
+  });
+
+  it('supports live metadata for model names unknown to LibreChat', () => {
+    const capabilities: TModelCapabilitiesConfig = {
+      Grok: {
+        'tocreate-reasoner': {
+          parameter: 'reasoning_effort',
+          options: ['', ReasoningEffort.medium, ReasoningEffort.max],
+        },
+      },
+    };
+
+    expect(
+      getInlineReasoningConfig({
+        endpoint: 'Grok',
+        endpointType: EModelEndpoint.custom,
+        model: 'tocreate-reasoner',
+        capabilities,
+      }),
+    ).toEqual({
+      parameter: 'reasoning_effort',
+      options: ['', ReasoningEffort.medium, ReasoningEffort.max],
+      defaultValue: '',
+    });
   });
 
   it('uses smaller profiles for earlier GPT-5 and o-series models', () => {

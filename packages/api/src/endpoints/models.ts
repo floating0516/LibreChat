@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import axios from 'axios';
 import crypto from 'crypto';
 import { logger } from '@librechat/data-schemas';
@@ -7,9 +8,17 @@ import {
   KnownEndpoints,
   EModelEndpoint,
   defaultModels,
+  reasoningOptionSchema,
+  modelReasoningCapabilitySchema,
+  inlineReasoningParameterSchema,
 } from 'librechat-data-provider';
 import type { IUser } from '@librechat/data-schemas';
 import type { AxiosRequestConfig } from 'axios';
+import type {
+  ReasoningOption,
+  InlineReasoningParameter,
+  TModelReasoningCapability,
+} from 'librechat-data-provider';
 import {
   processModelData,
   extractBaseURL,
@@ -25,6 +34,234 @@ import { createSSRFSafeAgents, validateEndpointURL } from '~/auth';
 import { standardCache, tokenConfigCache } from '~/cache';
 
 type SSRFSafeAgents = ReturnType<typeof createSSRFSafeAgents>;
+
+type ModelCapabilitiesByID = Record<string, TModelReasoningCapability>;
+
+const modelListCapabilities = new WeakMap<string[], ModelCapabilitiesByID>();
+const reasoningOptionsSchema = z.array(z.string()).max(32);
+const upstreamReasoningSchema = z
+  .object({
+    parameter: z.unknown().optional(),
+    options: z.unknown().optional(),
+    efforts: z.unknown().optional(),
+    levels: z.unknown().optional(),
+  })
+  .passthrough();
+const upstreamCapabilitiesSchema = z
+  .object({
+    reasoning: z.unknown().optional(),
+    reasoning_efforts: z.unknown().optional(),
+    supported_reasoning_efforts: z.unknown().optional(),
+    thinking_levels: z.unknown().optional(),
+    supported_thinking_levels: z.unknown().optional(),
+  })
+  .passthrough();
+const upstreamModelSchema = z
+  .object({
+    id: z.string().min(1).max(512),
+    reasoning_parameter: z.unknown().optional(),
+    reasoning_efforts: z.unknown().optional(),
+    supported_reasoning_efforts: z.unknown().optional(),
+    thinking_levels: z.unknown().optional(),
+    supported_thinking_levels: z.unknown().optional(),
+    capabilities: z.unknown().optional(),
+  })
+  .passthrough();
+const upstreamModelsResponseSchema = z.object({ data: z.array(z.unknown()) });
+const googleModelSchema = z
+  .object({
+    name: z.string().min(1).max(512),
+    supportedGenerationMethods: z.array(z.string()).optional(),
+  })
+  .passthrough();
+const cachedModelsSchema = z.object({
+  models: z.array(z.string()),
+  capabilities: z.record(modelReasoningCapabilitySchema),
+});
+
+const allowedOptions: Record<InlineReasoningParameter, ReadonlySet<ReasoningOption>> = {
+  reasoning_effort: new Set([
+    '',
+    'none',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+    'ultra',
+  ]),
+  effort: new Set(['', 'low', 'medium', 'high', 'xhigh', 'max']),
+  thinkingLevel: new Set(['', 'minimal', 'low', 'medium', 'high']),
+};
+const parameterAliases: Record<string, InlineReasoningParameter> = {
+  reasoning_effort: 'reasoning_effort',
+  reasoningeffort: 'reasoning_effort',
+  effort: 'effort',
+  thinking_level: 'thinkingLevel',
+  thinkinglevel: 'thinkingLevel',
+};
+const reasoningOptionAliases: Record<string, ReasoningOption> = {
+  '': '',
+  auto: '',
+  default: '',
+  unset: '',
+  'extra high': 'xhigh',
+  'extra-high': 'xhigh',
+  extra_high: 'xhigh',
+};
+
+function normalizeReasoningParameter(
+  value: unknown,
+  endpoint: string,
+  model: string,
+  thinkingLevels: boolean,
+): InlineReasoningParameter {
+  if (typeof value === 'string') {
+    const aliased = parameterAliases[value.trim().toLowerCase()];
+    const result = inlineReasoningParameterSchema.safeParse(aliased ?? value);
+    if (result.success) {
+      return result.data;
+    }
+  }
+
+  const normalizedModel = model.toLowerCase();
+  if (
+    thinkingLevels ||
+    endpoint === EModelEndpoint.google ||
+    /(?:gemini|gemma)/.test(normalizedModel)
+  ) {
+    return 'thinkingLevel';
+  }
+  if (endpoint === EModelEndpoint.anthropic || normalizedModel.includes('claude')) {
+    return 'effort';
+  }
+  return 'reasoning_effort';
+}
+
+function normalizeReasoningOption(value: string): ReasoningOption | null {
+  const normalized = value.trim().toLowerCase();
+  const result = reasoningOptionSchema.safeParse(reasoningOptionAliases[normalized] ?? normalized);
+  return result.success ? result.data : null;
+}
+
+function normalizeReasoningOptions(
+  value: unknown,
+  parameter: InlineReasoningParameter,
+): ReasoningOption[] {
+  const result = reasoningOptionsSchema.safeParse(value);
+  if (!result.success) {
+    return [];
+  }
+
+  const options: ReasoningOption[] = [''];
+  for (const rawOption of result.data) {
+    const option = normalizeReasoningOption(rawOption);
+    if (option == null || !allowedOptions[parameter].has(option) || options.includes(option)) {
+      continue;
+    }
+    options.push(option);
+  }
+  return options.length > 1 ? options : [];
+}
+
+function extractReasoningCapability(
+  rawModel: unknown,
+  endpoint: string,
+): { id: string; capability?: TModelReasoningCapability } | null {
+  const modelResult = upstreamModelSchema.safeParse(rawModel);
+  if (!modelResult.success) {
+    return null;
+  }
+
+  const model = modelResult.data;
+  const capabilitiesResult = upstreamCapabilitiesSchema.safeParse(model.capabilities);
+  const capabilities = capabilitiesResult.success ? capabilitiesResult.data : undefined;
+  const reasoningResult = upstreamReasoningSchema.safeParse(capabilities?.reasoning);
+  const reasoning = reasoningResult.success ? reasoningResult.data : undefined;
+  const reasoningArray = reasoningOptionsSchema.safeParse(capabilities?.reasoning);
+  const nestedOptions =
+    reasoning?.options ??
+    reasoning?.efforts ??
+    reasoning?.levels ??
+    (reasoningArray.success ? reasoningArray.data : undefined);
+  const reasoningOptions =
+    nestedOptions ??
+    capabilities?.reasoning_efforts ??
+    capabilities?.supported_reasoning_efforts ??
+    model.reasoning_efforts ??
+    model.supported_reasoning_efforts;
+  const thinkingOptions =
+    capabilities?.thinking_levels ??
+    capabilities?.supported_thinking_levels ??
+    model.thinking_levels ??
+    model.supported_thinking_levels;
+  const usesThinkingLevels = reasoningOptions == null && thinkingOptions != null;
+  const rawOptions = reasoningOptions ?? thinkingOptions;
+  const parameter = normalizeReasoningParameter(
+    reasoning?.parameter ?? model.reasoning_parameter,
+    endpoint,
+    model.id,
+    usesThinkingLevels,
+  );
+  const options = normalizeReasoningOptions(rawOptions, parameter);
+
+  if (options.length === 0) {
+    return { id: model.id };
+  }
+  return {
+    id: model.id,
+    capability: { parameter, options },
+  };
+}
+
+function attachModelListCapabilities(
+  models: string[],
+  capabilities: ModelCapabilitiesByID,
+): string[] {
+  if (Object.keys(capabilities).length > 0) {
+    modelListCapabilities.set(models, capabilities);
+  }
+  return models;
+}
+
+export function getModelListCapabilities(models: string[]): ModelCapabilitiesByID | undefined {
+  return modelListCapabilities.get(models);
+}
+
+function copyModelListCapabilities(source: string[], target: string[]): string[] {
+  const sourceCapabilities = getModelListCapabilities(source);
+  if (!sourceCapabilities) {
+    return target;
+  }
+
+  const targetCapabilities: ModelCapabilitiesByID = {};
+  for (const model of target) {
+    const capability = sourceCapabilities[model];
+    if (capability) {
+      targetCapabilities[model] = capability;
+    }
+  }
+  return attachModelListCapabilities(target, targetCapabilities);
+}
+
+function restoreCachedModels(value: unknown): string[] | null {
+  if (Array.isArray(value) && value.every((model) => typeof model === 'string')) {
+    return value;
+  }
+  const result = cachedModelsSchema.safeParse(value);
+  if (!result.success) {
+    return null;
+  }
+  return attachModelListCapabilities(result.data.models, result.data.capabilities);
+}
+
+function createCachedModelsValue(
+  models: string[],
+): string[] | { models: string[]; capabilities: ModelCapabilitiesByID } {
+  const capabilities = getModelListCapabilities(models);
+  return capabilities ? { models, capabilities } : models;
+}
 
 export interface FetchModelsParams {
   /** User ID for API requests */
@@ -195,17 +432,17 @@ export async function fetchModels({
   const cacheKey = shouldCache ? modelsCacheKey(baseURL ?? '', apiKey) : '';
   const modelsCache = shouldCache ? standardCache(CacheKeys.MODEL_QUERIES) : null;
   if (modelsCache && cacheKey) {
-    const cachedModels = await modelsCache.get(cacheKey);
+    const cachedModels = restoreCachedModels(await modelsCache.get(cacheKey));
     if (cachedModels) {
       if (createTokenConfig && tokenKey) {
         const tokenConfigBackfilled = await backfillTokenConfigFromModelCache(cacheKey, tokenKey);
         if (!tokenConfigBackfilled && isScopedTokenConfigKey(tokenKey)) {
-          models = cachedModels as string[];
+          models = cachedModels;
         } else {
-          return cachedModels as string[];
+          return cachedModels;
         }
       } else {
-        return cachedModels as string[];
+        return cachedModels;
       }
     }
   }
@@ -296,14 +533,29 @@ export async function fetchModels({
         await cache.set(getModelCacheTokenConfigKey(cacheKey), endpointTokenConfig);
       }
     }
-    models = input.data.map((item: { id: string }) => item.id);
+    const modelsResponse = upstreamModelsResponseSchema.safeParse(input);
+    if (modelsResponse.success) {
+      const capabilities: ModelCapabilitiesByID = {};
+      const modelIDs: string[] = [];
+      for (const rawModel of modelsResponse.data.data) {
+        const parsedModel = extractReasoningCapability(rawModel, name);
+        if (!parsedModel) {
+          continue;
+        }
+        modelIDs.push(parsedModel.id);
+        if (parsedModel.capability) {
+          capabilities[parsedModel.id] = parsedModel.capability;
+        }
+      }
+      models = attachModelListCapabilities(modelIDs, capabilities);
+    }
   } catch (error) {
     const logMessage = `Failed to fetch models from ${azure ? 'Azure ' : ''}${name} API`;
     logAxiosError({ message: logMessage, error: error as Error });
   }
 
   if (modelsCache && cacheKey && models.length > 0) {
-    await modelsCache.set(cacheKey, models, Time.TWO_MINUTES);
+    await modelsCache.set(cacheKey, createCachedModelsValue(models), Time.TWO_MINUTES);
   }
 
   return models;
@@ -381,12 +633,13 @@ export async function fetchOpenAIModels(
   }
 
   if (baseURL === openaiBaseURL) {
+    const fetchedModels = models;
     const regex = /(text-davinci-003|gpt-|o\d+|chat-latest)/;
     const excludeRegex = /audio|realtime/;
     models = models.filter((model) => regex.test(model) && !excludeRegex.test(model));
     const instructModels = models.filter((model) => model.includes('instruct'));
     const otherModels = models.filter((model) => !model.includes('instruct'));
-    models = otherModels.concat(instructModels);
+    models = copyModelListCapabilities(fetchedModels, otherModels.concat(instructModels));
   }
 
   return models;
@@ -541,28 +794,38 @@ export async function getGoogleModels(opts: GetGoogleModelsOptions = {}): Promis
   }
 
   try {
-    const response = await axios.get<{
-      models?: Array<{
-        name?: string;
-        supportedGenerationMethods?: string[];
-      }>;
-    }>('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', {
-      headers: {
-        'x-goog-api-key': apiKey,
+    const response = await axios.get<{ models?: unknown[] }>(
+      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+      {
+        headers: {
+          'x-goog-api-key': apiKey,
+        },
+        timeout: 5000,
       },
-      timeout: 5000,
-    });
+    );
 
-    const models = (response.data.models ?? [])
-      .filter(
-        (model) =>
-          typeof model.name === 'string' &&
-          model.supportedGenerationMethods?.includes('generateContent'),
-      )
-      .map((model) => model.name?.replace(/^models\//, '') ?? '')
-      .filter(Boolean);
+    const capabilities: ModelCapabilitiesByID = {};
+    const models: string[] = [];
+    for (const rawModel of response.data.models ?? []) {
+      const googleModel = googleModelSchema.safeParse(rawModel);
+      if (
+        !googleModel.success ||
+        !googleModel.data.supportedGenerationMethods?.includes('generateContent')
+      ) {
+        continue;
+      }
+      const id = googleModel.data.name.replace(/^models\//, '');
+      models.push(id);
+      const parsedModel = extractReasoningCapability(
+        { ...googleModel.data, id },
+        EModelEndpoint.google,
+      );
+      if (parsedModel?.capability) {
+        capabilities[id] = parsedModel.capability;
+      }
+    }
 
-    return models.length > 0 ? models : fallbackModels;
+    return models.length > 0 ? attachModelListCapabilities(models, capabilities) : fallbackModels;
   } catch {
     logger.debug('Failed to fetch Google models for model discovery.');
     return fallbackModels;

@@ -4,11 +4,13 @@ import { Brain, ChevronDown } from 'lucide-react';
 import {
   getInlineReasoningConfig,
   inlineReasoningParameterKeys,
-  type InlineReasoningParameter,
-  type TConversation,
+  modelCapabilitiesSymbol,
 } from 'librechat-data-provider';
+import type { InlineReasoningParameter, TConversation } from 'librechat-data-provider';
+import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { TooltipAnchor } from '@librechat/client';
-import { useLocalize, useSetIndexOptions, type TranslationKeys } from '~/hooks';
+import type { TranslationKeys } from '~/hooks';
+import { useLocalize, useSetIndexOptions } from '~/hooks';
 import { cn } from '~/utils';
 
 const labelKeys: Record<string, TranslationKeys> = {
@@ -45,8 +47,10 @@ function ReasoningEffortControl({
 }) {
   const localize = useLocalize();
   const { setOption } = useSetIndexOptions();
+  const modelsQuery = useGetModelsQuery();
   const menuStore = Ariakit.useMenuStore({ placement: 'top-end', focusLoop: true });
   const isOpen = menuStore.useState('open');
+  const capabilities = modelsQuery.data?.[modelCapabilitiesSymbol];
 
   const config = useMemo(
     () =>
@@ -54,8 +58,9 @@ function ReasoningEffortControl({
         endpoint: conversation?.endpoint,
         endpointType: conversation?.endpointType,
         model: conversation?.model,
+        capabilities,
       }),
-    [conversation?.endpoint, conversation?.endpointType, conversation?.model],
+    [capabilities, conversation?.endpoint, conversation?.endpointType, conversation?.model],
   );
 
   const storedValue = config ? getConversationValue(conversation, config.parameter) : undefined;

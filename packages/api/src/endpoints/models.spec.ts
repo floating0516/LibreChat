@@ -2,6 +2,7 @@ import axios from 'axios';
 import { Time, EModelEndpoint, defaultModels, AuthType } from 'librechat-data-provider';
 import {
   fetchModels,
+  getModelListCapabilities,
   splitAndTrim,
   getOpenAIModels,
   getGoogleModels,
@@ -93,6 +94,75 @@ describe('fetchModels', () => {
       expect.stringContaining('https://api.test.com/models'),
       expect.any(Object),
     );
+  });
+
+  it('preserves and normalizes reasoning capabilities returned with model metadata', async () => {
+    mockedAxios.get.mockResolvedValueOnce({
+      data: {
+        data: [
+          {
+            id: 'tocreate-reasoner',
+            capabilities: {
+              reasoning: {
+                parameter: 'reasoning_effort',
+                options: ['low', 'extra_high', 'ultra', 'unsupported'],
+              },
+            },
+          },
+          {
+            id: 'claude-live',
+            reasoning_parameter: 'effort',
+            reasoning_efforts: ['low', 'high', 'ultra'],
+          },
+        ],
+      },
+    });
+
+    const models = await fetchModels({
+      apiKey: 'testApiKey',
+      baseURL: 'https://api.test.com',
+      name: EModelEndpoint.openAI,
+      skipCache: true,
+    });
+
+    expect(models).toEqual(['tocreate-reasoner', 'claude-live']);
+    expect(getModelListCapabilities(models)).toEqual({
+      'tocreate-reasoner': {
+        parameter: 'reasoning_effort',
+        options: ['', 'low', 'xhigh', 'ultra'],
+      },
+      'claude-live': {
+        parameter: 'effort',
+        options: ['', 'low', 'high'],
+      },
+    });
+  });
+
+  it('restores reasoning capabilities from the model cache', async () => {
+    mockCacheGet.mockResolvedValueOnce({
+      models: ['cached-reasoner'],
+      capabilities: {
+        'cached-reasoner': {
+          parameter: 'reasoning_effort',
+          options: ['', 'medium', 'high'],
+        },
+      },
+    });
+
+    const models = await fetchModels({
+      apiKey: 'testApiKey',
+      baseURL: 'https://api.test.com',
+      name: EModelEndpoint.openAI,
+    });
+
+    expect(models).toEqual(['cached-reasoner']);
+    expect(getModelListCapabilities(models)).toEqual({
+      'cached-reasoner': {
+        parameter: 'reasoning_effort',
+        options: ['', 'medium', 'high'],
+      },
+    });
+    expect(mockedAxios.get).not.toHaveBeenCalled();
   });
 
   it('adds the user ID to the models query when option and ID are passed', async () => {

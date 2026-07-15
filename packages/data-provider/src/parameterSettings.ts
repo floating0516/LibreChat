@@ -15,6 +15,7 @@ import {
 } from './types';
 import { supportsAdaptiveThinking } from './bedrock';
 import { SettingDefinition, SettingsConfiguration } from './generate';
+import type { InlineReasoningParameter, TModelCapabilitiesConfig } from './models';
 
 // Base definitions
 const baseDefinitions: Record<string, SettingDefinition> = {
@@ -1224,8 +1225,6 @@ export function applyModelAwareDefaults(
   );
 }
 
-export type InlineReasoningParameter = 'reasoning_effort' | 'effort' | 'thinkingLevel';
-
 export type InlineReasoningConfig = {
   parameter: InlineReasoningParameter;
   options: readonly string[];
@@ -1295,20 +1294,36 @@ function createInlineReasoningConfig(
 }
 
 /**
- * Returns the qualitative reasoning control supported by the selected model.
- * Unknown or numeric-budget-only models intentionally return null.
+ * Resolves the selected model's qualitative reasoning control. Live provider
+ * metadata is authoritative; known model profiles remain as a compatibility fallback.
  */
 export function getInlineReasoningConfig({
   endpoint,
   endpointType,
   model,
+  capabilities,
 }: {
   endpoint?: string | null;
   endpointType?: string | null;
   model?: string | null;
+  capabilities?: TModelCapabilitiesConfig | null;
 }): InlineReasoningConfig | null {
   if (!model) {
     return null;
+  }
+
+  const capabilityEndpoints = [endpoint, endpointType];
+  for (const capabilityEndpoint of capabilityEndpoints) {
+    if (!capabilityEndpoint) {
+      continue;
+    }
+    const liveCapability = capabilities?.[capabilityEndpoint]?.[model];
+    if (liveCapability) {
+      return createInlineReasoningConfig(
+        liveCapability.parameter,
+        liveCapability.options,
+      );
+    }
   }
 
   const normalizedModel = model.toLowerCase();

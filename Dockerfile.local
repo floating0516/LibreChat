@@ -4,15 +4,19 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.3
+ARG LIBRECHAT_VERSION=v0.8.7.4
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
 COPY --chown=node:node api/server/services/Config/loadDefaultModels.js /app/api/server/services/Config/loadDefaultModels.js
+COPY --chown=node:node api/server/controllers/ModelController.js /app/api/server/controllers/ModelController.js
 COPY --chown=node:node packages/api/src/endpoints/models.ts /app/packages/api/src/endpoints/models.ts
 COPY --chown=node:node packages/api/src/endpoints/config/models.ts /app/packages/api/src/endpoints/config/models.ts
 COPY --chown=node:node packages/data-provider/src/config.ts /app/packages/data-provider/src/config.ts
+COPY --chown=node:node packages/data-provider/src/data-service.ts /app/packages/data-provider/src/data-service.ts
+COPY --chown=node:node packages/data-provider/src/models.ts /app/packages/data-provider/src/models.ts
 COPY --chown=node:node packages/data-provider/src/schemas.ts /app/packages/data-provider/src/schemas.ts
+COPY --chown=node:node packages/data-provider/src/types.ts /app/packages/data-provider/src/types.ts
 COPY --chown=node:node packages/data-provider/src/parameterSettings.ts /app/packages/data-provider/src/parameterSettings.ts
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx

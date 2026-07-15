@@ -15,6 +15,8 @@ import type { SettingDefinition } from './generate';
 import type { TMinimalFeedback } from './feedback';
 import type { ContentTypes } from './types/runs';
 import type { Agent } from './types/assistants';
+import { modelCapabilitiesSymbol } from './models';
+import type { TModelCapabilitiesConfig } from './models';
 
 export * from './schemas';
 
@@ -466,7 +468,9 @@ export type TEndpointsConfig =
   | Record<EModelEndpoint | string, TConfig | null | undefined>
   | undefined;
 
-export type TModelsConfig = Record<string, string[]>;
+export type TModelsConfig = Record<string, string[]> & {
+  [modelCapabilitiesSymbol]?: TModelCapabilitiesConfig;
+};
 
 /** Server-resolved context window and pricing for one model. Rates are USD per 1M tokens. */
 export type TModelTokenomics = {

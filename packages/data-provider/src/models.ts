@@ -10,6 +10,41 @@ import {
 } from './schemas';
 import { MAX_SUBAGENTS } from './limits';
 
+export const modelCapabilitiesResponseKey = '__librechat_model_capabilities';
+export const modelCapabilitiesSymbol: unique symbol = Symbol('librechat.modelCapabilities');
+
+export const inlineReasoningParameterSchema = z.enum([
+  'reasoning_effort',
+  'effort',
+  'thinkingLevel',
+]);
+
+export const reasoningOptionSchema = z.enum([
+  '',
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'ultra',
+]);
+
+export const modelReasoningCapabilitySchema = z.object({
+  parameter: inlineReasoningParameterSchema,
+  options: z.array(reasoningOptionSchema).min(2).max(16),
+});
+
+export const modelCapabilitiesConfigSchema = z.record(
+  z.record(modelReasoningCapabilitySchema),
+);
+
+export type InlineReasoningParameter = z.infer<typeof inlineReasoningParameterSchema>;
+export type ReasoningOption = z.infer<typeof reasoningOptionSchema>;
+export type TModelReasoningCapability = z.infer<typeof modelReasoningCapabilitySchema>;
+export type TModelCapabilitiesConfig = z.infer<typeof modelCapabilitiesConfigSchema>;
+
 export type TModelSpec = {
   name: string;
   label: string;

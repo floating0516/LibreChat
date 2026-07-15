@@ -12,6 +12,12 @@ import * as q from './types/queries';
 import * as sk from './types/skills';
 import * as f from './types/files';
 import * as config from './config';
+import {
+  modelCapabilitiesConfigSchema,
+  modelCapabilitiesResponseKey,
+  modelCapabilitiesSymbol,
+} from './models';
+import type { TModelCapabilitiesConfig } from './models';
 import request from './request';
 import * as s from './schemas';
 import * as r from './roles';
@@ -266,7 +272,29 @@ export const getContextProjection = (
 };
 
 export const getModels = async (): Promise<t.TModelsConfig> => {
-  return request.get(endpoints.models());
+  const response = await request.get<
+    Record<string, string[] | TModelCapabilitiesConfig>
+  >(endpoints.models());
+  const modelsConfig: t.TModelsConfig = {};
+
+  for (const [endpoint, value] of Object.entries(response)) {
+    if (endpoint === modelCapabilitiesResponseKey || !Array.isArray(value)) {
+      continue;
+    }
+    modelsConfig[endpoint] = value.filter(
+      (model): model is string => typeof model === 'string',
+    );
+  }
+
+  const capabilitiesResult = modelCapabilitiesConfigSchema.safeParse(
+    response[modelCapabilitiesResponseKey],
+  );
+  Object.defineProperty(modelsConfig, modelCapabilitiesSymbol, {
+    value: capabilitiesResult.success ? capabilitiesResult.data : {},
+    enumerable: false,
+  });
+
+  return modelsConfig;
 };
 
 /* Assistants */
