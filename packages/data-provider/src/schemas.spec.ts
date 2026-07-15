@@ -1,9 +1,11 @@
 import {
   AnthropicEffort,
+  ReasoningEffort,
   googleSettings,
   anthropicSettings,
   compactGoogleSchema,
   eAnthropicEffortSchema,
+  eReasoningEffortSchema,
 } from './schemas';
 
 describe('anthropicSettings', () => {
@@ -493,5 +495,16 @@ describe('AnthropicEffort', () => {
 
   it('rejects unknown effort values', () => {
     expect(() => eAnthropicEffortSchema.parse('ultra')).toThrow();
+  });
+});
+
+describe('ReasoningEffort', () => {
+  it('accepts the gateway-specific max and ultra tiers', () => {
+    expect(eReasoningEffortSchema.parse(ReasoningEffort.max)).toBe('max');
+    expect(eReasoningEffortSchema.parse(ReasoningEffort.ultra)).toBe('ultra');
+  });
+
+  it('rejects unknown effort values', () => {
+    expect(() => eReasoningEffortSchema.parse('extreme')).toThrow();
   });
 });

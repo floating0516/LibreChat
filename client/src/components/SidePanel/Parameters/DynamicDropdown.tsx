@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { OptionTypes } from 'librechat-data-provider';
 import { Label, HoverCard, HoverCardTrigger, SelectDropDown } from '@librechat/client';
-import type { DynamicSettingProps } from 'librechat-data-provider';
+import type { DynamicSettingProps, Option } from 'librechat-data-provider';
 import { TranslationKeys, useLocalize, useParameterEffects } from '~/hooks';
 import { useChatContext } from '~/Providers';
 import OptionHover from './OptionHover';
@@ -17,6 +17,7 @@ function DynamicDropdown({
   setOption,
   optionType,
   options,
+  enumMappings,
   // type: _type,
   readonly = false,
   showLabel = true,
@@ -40,7 +41,37 @@ function DynamicDropdown({
     return conversation?.[settingKey] ?? defaultValue;
   }, [conversation, defaultValue, optionType, settingKey, inputValue]);
 
-  const handleChange = (value: string) => {
+  const availableValues = useMemo(() => {
+    if (!options || !enumMappings) {
+      return options;
+    }
+
+    return options.map((value) => {
+      const mappedValue = String(enumMappings[value] ?? value);
+      const label = mappedValue.startsWith('com_')
+        ? (localize(mappedValue as TranslationKeys) ?? mappedValue)
+        : mappedValue;
+      return { label, value };
+    });
+  }, [enumMappings, localize, options]);
+
+  const dropdownValue = useMemo(() => {
+    if (!enumMappings || typeof selectedValue !== 'string') {
+      return selectedValue;
+    }
+
+    return (
+      (availableValues as Option[] | undefined)?.find((option) => option.value === selectedValue) ??
+      selectedValue
+    );
+  }, [availableValues, enumMappings, selectedValue]);
+
+  const handleChange = (selected: string | Option) => {
+    const value = typeof selected === 'string' ? selected : selected.value;
+    if (typeof value !== 'string') {
+      return;
+    }
+
     if (optionType === OptionTypes.Custom) {
       // TODO: custom logic, add to payload but not to conversation
       setInputValue(value);
@@ -91,9 +122,9 @@ function DynamicDropdown({
             showLabel={false}
             emptyTitle={true}
             disabled={readonly}
-            value={selectedValue}
+            value={dropdownValue}
             setValue={handleChange}
-            availableValues={options}
+            availableValues={availableValues}
             containerClassName="w-full"
             className="py-1.5"
             id={`${settingKey}-dynamic-dropdown`}

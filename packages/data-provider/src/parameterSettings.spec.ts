@@ -1,8 +1,9 @@
-import { EModelEndpoint } from './types';
+import { EModelEndpoint, ReasoningEffort } from './types';
 import { applyModelAwareDefaults, paramSettings } from './parameterSettings';
 import type { SettingDefinition } from './generate';
 
 const googleParams = paramSettings[EModelEndpoint.google] as SettingDefinition[];
+const openAIParams = paramSettings[EModelEndpoint.openAI] as SettingDefinition[];
 const maxOut = (params: SettingDefinition[]) => params.find((p) => p.key === 'maxOutputTokens');
 
 describe('applyModelAwareDefaults', () => {
@@ -53,5 +54,27 @@ describe('applyModelAwareDefaults', () => {
     const override = { ...maxOut(modelAware), default: 2048 } as SettingDefinition;
     const final = modelAware.map((p) => (p.key === 'maxOutputTokens' ? override : p));
     expect(maxOut(final)?.default).toBe(2048);
+  });
+});
+
+describe('OpenAI reasoning effort', () => {
+  const reasoningEffort = openAIParams.find((param) => param.key === 'reasoning_effort');
+
+  it('uses an explicit dropdown instead of an unlabeled enum slider', () => {
+    expect(reasoningEffort?.component).toBe('dropdown');
+  });
+
+  it('exposes all gateway-supported effort tiers in order', () => {
+    expect(reasoningEffort?.options).toEqual([
+      ReasoningEffort.unset,
+      ReasoningEffort.none,
+      ReasoningEffort.minimal,
+      ReasoningEffort.low,
+      ReasoningEffort.medium,
+      ReasoningEffort.high,
+      ReasoningEffort.xhigh,
+      ReasoningEffort.max,
+      ReasoningEffort.ultra,
+    ]);
   });
 });

@@ -3,15 +3,17 @@ cache: false
 
 interface:
   fileSearch: false
+  parameters: true
 
 endpoints:
   custom:
     - name: 'Grok'
       apiKey: 'user_provided'
-      baseURL: 'https://api.x.ai/v1'
+      baseURL: 'https://api.lihe.chat/v1'
+      iconURL: '/assets/assets/grok.svg'
       models:
         # Required by LibreChat's endpoint schema. The server hides this fallback
-        # until a user key successfully returns models from xAI's /models endpoint.
+        # until a user key successfully returns models from the gateway's /models endpoint.
         default:
           - 'grok-3'
         fetch: true
