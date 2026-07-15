@@ -26,6 +26,16 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 默认页脚显示 `ToCreate | Powered by LibreChat vX.Y.Z.N`。`ToCreate` 链接到 `https://api.lihe.chat`，版本文字链接到 `https://github.com/floating0516/LibreChat`；新部署由 `prepare.sh` 根据 `deployment/version.env` 写入版本号。现有部署升级版本时同步更新 `.env` 的 `CUSTOM_FOOTER` 版本文字，然后只重启 API。
 
+## 联网搜索与智能体工具
+
+聊天工具栏默认固定“网页搜索”和 MCP 入口。原生网页搜索由 Tavily 同时完成搜索与正文提取，使用 `basic` 深度、最多 5 条结果且不额外调用重排服务；每位用户在网页搜索设置中保存自己的 Tavily Key，服务端不保存共享付费 Key。Tavily 免费账户当前提供每月 1,000 credits、无需信用卡；一次基础搜索消耗 1 credit，最多 5 个页面的基础提取合计再消耗 1 credit。
+
+审核后的远程 MCP 只开放以下四项：`Tavily Web` 无需 Key 即可搜索网页和提取正文；`Context7 Docs` 无需 Key 即可查询最新的库、框架和 SDK 文档；`Jina Web Research` 使用用户自己的免费 Jina Key，提供网页读取、网页搜索、arXiv 和图片搜索；`GitHub Repositories` 使用用户自己的 fine-grained PAT，并固定为官方 `repos/readonly` 工具集及 lockdown 模式。Jina Key 与 GitHub PAT 在 MCP 工具选择界面按用户填写并加密保存，不写入 YAML 或共享环境变量。
+
+普通用户只能使用上述审核服务器，不能新增、共享或公开任意 MCP；出站连接严格限制为四个官方 HTTPS 域名。MCP 指令明确把网页和仓库内容视为不可信数据，禁止把检索内容当成指令，也禁止向 Context7 发送密钥、个人数据或私有代码。免费额度和限流由各供应商调整，正式高频使用前应复核其官方价格页。
+
+当前主机只有约 3.6 GiB RAM，且未部署 RAG API 或 Code Interpreter API，因此 `fileSearch` 与 `runCode` 保持关闭，Agent 能力也不暴露 `file_search` 或 `execute_code`。Artifacts、网页搜索、MCP、上下文文件、Skills、Actions、Subagents 和工具链能力仍可使用；需要沙箱执行代码或向量检索时，应先增加主机资源或接入独立的远程后端。
+
 ## 本地定制镜像
 
 本目录的 Claude/Grok 渠道包含本地模型发现补丁。首次部署或修改该补丁后，先构建派生镜像，再将 `.env` 中的 `LIBRECHAT_IMAGE` 设为输出的标签：
