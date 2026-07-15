@@ -13,5 +13,15 @@ librechat*
 Dockerfile*
 docs
 
-# Ignore all hidden files
+# Local runtime and build output
+runtime
+coverage
+playwright-report
+test-results
+client/dist
+packages/*/dist
+api/dist
+*.log
+
+# Ignore all hidden files, including .env
 .*

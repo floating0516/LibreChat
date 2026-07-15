@@ -413,7 +413,7 @@ describe('loadConfigModels', () => {
       expect(result.UserEndpoint).toEqual(['fetched-model-a', 'fetched-model-b']);
     });
 
-    it('falls back to defaults when getUserKeyValues returns no apiKey', async () => {
+    it('hides models when getUserKeyValues returns no apiKey', async () => {
       const { getUserKeyValues } = require('~/models');
       getUserKeyValues.mockResolvedValueOnce({ baseURL: 'https://api.x.com/v1' });
       getAppConfig.mockResolvedValue({
@@ -432,10 +432,10 @@ describe('loadConfigModels', () => {
       const result = await loadConfigModels(mockRequest);
 
       expect(fetchModels).not.toHaveBeenCalled();
-      expect(result.NoKeyEndpoint).toEqual(['default-model']);
+      expect(result.NoKeyEndpoint).toEqual([]);
     });
 
-    it('falls back to defaults and logs warn when getUserKeyValues throws infra error', async () => {
+    it('hides models and logs warn when getUserKeyValues throws infra error', async () => {
       const { getUserKeyValues } = require('~/models');
       const { logger } = require('@librechat/data-schemas');
       getUserKeyValues.mockRejectedValueOnce(new Error('DB connection timeout'));
@@ -455,7 +455,7 @@ describe('loadConfigModels', () => {
       const result = await loadConfigModels(mockRequest);
 
       expect(fetchModels).not.toHaveBeenCalled();
-      expect(result.ErrorEndpoint).toEqual(['fallback']);
+      expect(result.ErrorEndpoint).toEqual([]);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining(
           'Failed to retrieve user key for "ErrorEndpoint": DB connection timeout',
@@ -483,7 +483,7 @@ describe('loadConfigModels', () => {
 
       const result = await loadConfigModels(mockRequest);
 
-      expect(result.MissingKeyEndpoint).toEqual(['default-model']);
+      expect(result.MissingKeyEndpoint).toEqual([]);
       expect(logger.debug).toHaveBeenCalledWith(expect.stringContaining('No user key stored'));
       expect(logger.warn).not.toHaveBeenCalledWith(
         expect.stringContaining('Failed to retrieve user key'),
@@ -508,7 +508,7 @@ describe('loadConfigModels', () => {
       const result = await loadConfigModels({ user: {} });
 
       expect(getUserKeyValues).not.toHaveBeenCalled();
-      expect(result.NoUserEndpoint).toEqual(['anon-model']);
+      expect(result.NoUserEndpoint).toEqual([]);
     });
 
     it('uses stored baseURL only when baseURL is user_provided', async () => {

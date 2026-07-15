@@ -5,6 +5,7 @@ import {
   allowedAddressesSchema,
   configSchema,
   excludedKeys,
+  initialModelsConfig,
   resolveEndpointType,
   webSearchSchema,
 } from './config';
@@ -26,6 +27,14 @@ describe('excludedKeys', () => {
 
   it('does not exclude tenantId (plugin-level guard owns this)', () => {
     expect(excludedKeys.has('tenantId')).toBe(false);
+  });
+});
+
+describe('initialModelsConfig', () => {
+  it('does not expose fallback models for user-key provider channels', () => {
+    expect(initialModelsConfig[EModelEndpoint.openAI]).toEqual([]);
+    expect(initialModelsConfig[EModelEndpoint.google]).toEqual([]);
+    expect(initialModelsConfig[EModelEndpoint.anthropic]).toEqual([]);
   });
 });
 

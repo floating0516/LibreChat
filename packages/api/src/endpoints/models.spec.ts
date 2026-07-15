@@ -451,11 +451,25 @@ describe('getOpenAIModels', () => {
     expect(models).toContain('gpt-5.5');
   });
 
+  it('returns no models when a user-provided OpenAI key is missing', async () => {
+    delete process.env.OPENAI_MODELS;
+    process.env.OPENAI_API_KEY = AuthType.USER_PROVIDED;
+
+    const models = await getOpenAIModels({ user: 'user456', fallbackModels: [] });
+
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+    expect(models).toEqual([]);
+  });
+
   it('fetches models when OpenAI API key is provided through options', async () => {
     mockedAxios.get.mockResolvedValue({ data: { data: [{ id: 'gpt-runtime-key' }] } });
     process.env.OPENAI_API_KEY = AuthType.USER_PROVIDED;
 
-    const models = await getOpenAIModels({ user: 'user456', openAIApiKey: 'sk-runtime' });
+    const models = await getOpenAIModels({
+      user: 'user456',
+      openAIApiKey: 'sk-runtime',
+      fallbackModels: [],
+    });
 
     expect(mockedAxios.get).toHaveBeenCalledWith(
       expect.stringContaining('https://api.openai.com/v1/models'),
@@ -466,6 +480,19 @@ describe('getOpenAIModels', () => {
       }),
     );
     expect(models).toEqual(['gpt-runtime-key']);
+  });
+
+  it('returns no models when a user-provided OpenAI key cannot list models', async () => {
+    delete process.env.OPENAI_MODELS;
+    process.env.OPENAI_API_KEY = AuthType.USER_PROVIDED;
+
+    const models = await getOpenAIModels({
+      user: 'user456',
+      openAIApiKey: 'invalid-runtime-key',
+      fallbackModels: [],
+    });
+
+    expect(models).toEqual([]);
   });
 
   it('falls back to environment OpenAI API key when options key is empty', async () => {
@@ -863,6 +890,15 @@ describe('getAnthropicModels', () => {
     expect(models).toEqual(defaultModels[EModelEndpoint.anthropic]);
   });
 
+  it('returns no models when a user-provided Anthropic key is missing', async () => {
+    delete process.env.ANTHROPIC_MODELS;
+    process.env.ANTHROPIC_API_KEY = AuthType.USER_PROVIDED;
+
+    const models = await getAnthropicModels({ fallbackModels: [] });
+
+    expect(models).toEqual([]);
+  });
+
   it('returns models from ANTHROPIC_MODELS when set', async () => {
     process.env.ANTHROPIC_MODELS = 'claude-1, claude-2 ';
     const models = await getAnthropicModels();
@@ -953,22 +989,82 @@ describe('getGoogleModels', () => {
 
   beforeEach(() => {
     originalEnv = { ...process.env };
+    delete process.env.GOOGLE_KEY;
+    mockedAxios.get.mockReset();
   });
 
   afterEach(() => {
     process.env = originalEnv;
+    mockedAxios.get.mockReset();
   });
 
-  it('returns default models when GOOGLE_MODELS is not set', () => {
+  it('returns default models when GOOGLE_MODELS and a Google key are not set', async () => {
     delete process.env.GOOGLE_MODELS;
-    const models = getGoogleModels();
+    const models = await getGoogleModels();
     expect(models).toEqual(defaultModels[EModelEndpoint.google]);
   });
 
-  it('returns models from GOOGLE_MODELS when set', () => {
+  it('returns models from GOOGLE_MODELS when set', async () => {
     process.env.GOOGLE_MODELS = 'gemini-pro, bard ';
-    const models = getGoogleModels();
+    const models = await getGoogleModels();
     expect(models).toEqual(['gemini-pro', 'bard']);
+  });
+
+  it('returns no models when a user-provided Google key is missing', async () => {
+    process.env.GOOGLE_KEY = AuthType.USER_PROVIDED;
+
+    const models = await getGoogleModels({ fallbackModels: [] });
+
+    expect(mockedAxios.get).not.toHaveBeenCalled();
+    expect(models).toEqual([]);
+  });
+
+  it('fetches generateContent models with a user-provided Google key', async () => {
+    process.env.GOOGLE_KEY = AuthType.USER_PROVIDED;
+    mockedAxios.get.mockResolvedValue({
+      data: {
+        models: [
+          {
+            name: 'models/gemini-2.5-pro',
+            supportedGenerationMethods: ['generateContent', 'countTokens'],
+          },
+          {
+            name: 'models/text-embedding-004',
+            supportedGenerationMethods: ['embedContent'],
+          },
+          {
+            name: 'gemini-2.5-flash',
+            supportedGenerationMethods: ['generateContent'],
+          },
+        ],
+      },
+    });
+
+    const models = await getGoogleModels({
+      googleApiKey: 'google-runtime-key',
+      fallbackModels: [],
+    });
+
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000',
+      {
+        headers: { 'x-goog-api-key': 'google-runtime-key' },
+        timeout: 5000,
+      },
+    );
+    expect(models).toEqual(['gemini-2.5-pro', 'gemini-2.5-flash']);
+  });
+
+  it('returns no models when a user-provided Google key cannot list models', async () => {
+    process.env.GOOGLE_KEY = AuthType.USER_PROVIDED;
+    mockedAxios.get.mockRejectedValue(new Error('Unauthorized'));
+
+    const models = await getGoogleModels({
+      googleApiKey: 'invalid-google-key',
+      fallbackModels: [],
+    });
+
+    expect(models).toEqual([]);
   });
 });
 

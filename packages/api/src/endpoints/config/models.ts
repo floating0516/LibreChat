@@ -42,6 +42,17 @@ interface ResolvedEndpoint {
   baseURLIsUserProvided: boolean;
 }
 
+function hideFallbackModelsUntilUserKeyIsValid(endpoint: TEndpoint): boolean {
+  if (!endpoint.models?.fetch) {
+    return false;
+  }
+
+  return (
+    isUserProvided(extractEnvVariable(endpoint.apiKey ?? '')) ||
+    isUserProvided(extractEnvVariable(endpoint.baseURL ?? ''))
+  );
+}
+
 export interface LoadConfigModelsDeps {
   getAppConfig: (params: {
     role?: string;
@@ -251,7 +262,7 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
         }
       }
 
-      if (Array.isArray(models?.default)) {
+      if (Array.isArray(models?.default) && !hideFallbackModelsUntilUserKeyIsValid(endpoint)) {
         modelsConfig[name] = models.default.map((model) =>
           typeof model === 'string' ? model : model.name,
         );
@@ -275,7 +286,13 @@ export function createLoadConfigModels(deps: LoadConfigModelsDeps) {
         const defaults = (endpoint.models?.default ?? []).map((m) =>
           typeof m === 'string' ? m : m.name,
         );
-        modelsConfig[name] = !modelData?.length ? defaults : modelData;
+        if (modelData?.length) {
+          modelsConfig[name] = modelData;
+        } else if (hideFallbackModelsUntilUserKeyIsValid(endpoint)) {
+          modelsConfig[name] = [];
+        } else {
+          modelsConfig[name] = defaults;
+        }
       }
 
       /** A shared fetch caches token config under one endpoint's tokenKey;

@@ -1849,8 +1849,8 @@ export const alternateName = {
   [EModelEndpoint.agents]: 'My Agents',
   [EModelEndpoint.azureAssistants]: 'Azure Assistants',
   [EModelEndpoint.azureOpenAI]: 'Azure OpenAI',
-  [EModelEndpoint.google]: 'Google',
-  [EModelEndpoint.anthropic]: 'Anthropic',
+  [EModelEndpoint.google]: 'Gemini',
+  [EModelEndpoint.anthropic]: 'Claude',
   [EModelEndpoint.custom]: 'Custom',
   [EModelEndpoint.bedrock]: 'AWS Bedrock',
   [KnownEndpoints.ollama]: 'Ollama',
@@ -1984,12 +1984,14 @@ const openAIModels = defaultModels[EModelEndpoint.openAI];
 
 export const initialModelsConfig: TModelsConfig = {
   initial: [],
-  [EModelEndpoint.openAI]: openAIModels,
+  // User-provided provider keys are validated through model discovery after login.
+  // Do not briefly expose the upstream fallback list before that validation completes.
+  [EModelEndpoint.openAI]: [],
   [EModelEndpoint.assistants]: openAIModels.filter(fitlerAssistantModels),
   [EModelEndpoint.agents]: openAIModels, // TODO: Add agent models (agentsModels)
   [EModelEndpoint.azureOpenAI]: openAIModels,
-  [EModelEndpoint.google]: defaultModels[EModelEndpoint.google],
-  [EModelEndpoint.anthropic]: defaultModels[EModelEndpoint.anthropic],
+  [EModelEndpoint.google]: [],
+  [EModelEndpoint.anthropic]: [],
   [EModelEndpoint.bedrock]: defaultModels[EModelEndpoint.bedrock],
 };
 

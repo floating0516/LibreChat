@@ -323,6 +323,8 @@ export interface GetOpenAIModelsOptions {
   assistants?: boolean;
   /** OpenAI API key (if not using environment variable) */
   openAIApiKey?: string;
+  /** Models to return when discovery cannot authenticate or returns no models */
+  fallbackModels?: string[];
   /** Skip MODEL_QUERIES cache (e.g., for user-provided keys) */
   skipCache?: boolean;
   /** Configured custom headers forwarded to the (gateway-fronted) provider */
@@ -396,11 +398,11 @@ export async function fetchOpenAIModels(
  * @returns Promise resolving to array of model IDs
  */
 export async function getOpenAIModels(opts: GetOpenAIModelsOptions = {}): Promise<string[]> {
-  let models = defaultModels[EModelEndpoint.openAI];
+  let models = opts.fallbackModels ?? defaultModels[EModelEndpoint.openAI];
 
-  if (opts.assistants) {
+  if (opts.fallbackModels == null && opts.assistants) {
     models = defaultModels[EModelEndpoint.assistants];
-  } else if (opts.azure) {
+  } else if (opts.fallbackModels == null && opts.azure) {
     models = defaultModels[EModelEndpoint.azureAssistants];
   }
 
@@ -433,6 +435,8 @@ export async function getOpenAIModels(opts: GetOpenAIModelsOptions = {}): Promis
 export async function fetchAnthropicModels(
   opts: {
     user?: string;
+    anthropicApiKey?: string;
+    fallbackModels?: string[];
     skipCache?: boolean;
     headers?: Record<string, string> | null;
     userObject?: Partial<IUser>;
@@ -440,7 +444,7 @@ export async function fetchAnthropicModels(
   _models: string[] = [],
 ): Promise<string[]> {
   let models = _models.slice() ?? [];
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = opts.anthropicApiKey || process.env.ANTHROPIC_API_KEY;
   const anthropicBaseURL = 'https://api.anthropic.com/v1';
   let baseURL = anthropicBaseURL;
   const reverseProxyUrl = process.env.ANTHROPIC_REVERSE_PROXY;
@@ -481,12 +485,16 @@ export async function fetchAnthropicModels(
 export async function getAnthropicModels(
   opts: {
     user?: string;
+    anthropicApiKey?: string;
+    /** Models to return when discovery cannot authenticate or returns no models */
+    fallbackModels?: string[];
     vertexModels?: string[];
     headers?: Record<string, string> | null;
     userObject?: Partial<IUser>;
+    skipCache?: boolean;
   } = {},
 ): Promise<string[]> {
-  const models = defaultModels[EModelEndpoint.anthropic];
+  const models = opts.fallbackModels ?? defaultModels[EModelEndpoint.anthropic];
 
   // Vertex AI models from YAML config take priority
   if (opts.vertexModels && opts.vertexModels.length > 0) {
@@ -497,7 +505,7 @@ export async function getAnthropicModels(
     return splitAndTrim(process.env.ANTHROPIC_MODELS);
   }
 
-  if (isUserProvided(process.env.ANTHROPIC_API_KEY)) {
+  if (isUserProvided(opts.anthropicApiKey || process.env.ANTHROPIC_API_KEY)) {
     return models;
   }
 
@@ -509,16 +517,56 @@ export async function getAnthropicModels(
   }
 }
 
+export interface GetGoogleModelsOptions {
+  /** Google Generative AI API key (if not using the environment variable) */
+  googleApiKey?: string;
+  /** Models to return when discovery cannot authenticate or returns no models */
+  fallbackModels?: string[];
+}
+
 /**
- * Gets Google models from environment or defaults.
- * @returns Array of model IDs
+ * Gets Google Generative AI models from the API, environment, or defaults.
+ * @param opts - Options for fetching Google models
+ * @returns Promise resolving to an array of model IDs
  */
-export function getGoogleModels(): string[] {
-  let models = defaultModels[EModelEndpoint.google];
+export async function getGoogleModels(opts: GetGoogleModelsOptions = {}): Promise<string[]> {
+  const fallbackModels = opts.fallbackModels ?? defaultModels[EModelEndpoint.google];
   if (process.env.GOOGLE_MODELS) {
-    models = splitAndTrim(process.env.GOOGLE_MODELS);
+    return splitAndTrim(process.env.GOOGLE_MODELS);
   }
-  return models;
+
+  const apiKey = opts.googleApiKey || process.env.GOOGLE_KEY;
+  if (!apiKey || isUserProvided(apiKey)) {
+    return fallbackModels;
+  }
+
+  try {
+    const response = await axios.get<{
+      models?: Array<{
+        name?: string;
+        supportedGenerationMethods?: string[];
+      }>;
+    }>('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', {
+      headers: {
+        'x-goog-api-key': apiKey,
+      },
+      timeout: 5000,
+    });
+
+    const models = (response.data.models ?? [])
+      .filter(
+        (model) =>
+          typeof model.name === 'string' &&
+          model.supportedGenerationMethods?.includes('generateContent'),
+      )
+      .map((model) => model.name?.replace(/^models\//, '') ?? '')
+      .filter(Boolean);
+
+    return models.length > 0 ? models : fallbackModels;
+  } catch {
+    logger.debug('Failed to fetch Google models for model discovery.');
+    return fallbackModels;
+  }
 }
 
 /**
