@@ -9,8 +9,9 @@ import {
   SettingDefinition,
   tConvoUpdateSchema,
   applyModelAwareDefaults,
+  inlineReasoningParameterKeys,
 } from 'librechat-data-provider';
-import type { TPreset } from 'librechat-data-provider';
+import type { InlineReasoningParameter, TPreset } from 'librechat-data-provider';
 import { SaveAsPresetDialog } from '~/components/Endpoints';
 import { useSetIndexOptions, useLocalize } from '~/hooks';
 import { useGetEndpointsQuery } from '~/data-provider';
@@ -51,9 +52,11 @@ export default function Parameters() {
       overriddenEndpointKey,
       model,
     );
-    return modelAwareParams.map(
-      (param) => (overriddenParamsMap[param.key] as SettingDefinition) ?? param,
-    );
+    return modelAwareParams
+      .map((param) => (overriddenParamsMap[param.key] as SettingDefinition) ?? param)
+      .filter(
+        (param) => !inlineReasoningParameterKeys.has(param.key as InlineReasoningParameter),
+      );
   }, [endpointType, endpointsConfig, model, provider]);
 
   useEffect(() => {
@@ -91,6 +94,10 @@ export default function Parameters() {
         // }
 
         if (paramKeys.has(key)) {
+          return;
+        }
+
+        if (inlineReasoningParameterKeys.has(key as InlineReasoningParameter)) {
           return;
         }
 

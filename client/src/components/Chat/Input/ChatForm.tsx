@@ -36,6 +36,7 @@ import CollapseChat from './CollapseChat';
 import QuoteButton from './QuoteButton';
 import StreamAudio from './StreamAudio';
 import TokenUsage from './TokenUsage';
+import ReasoningEffortControl from './ReasoningEffortControl';
 import StopButton from './StopButton';
 import SendButton from './SendButton';
 import EditBadges from './EditBadges';
@@ -392,6 +393,10 @@ const ChatForm = memo(function ChatForm({
               />
               <div className="mx-auto flex" />
               <TokenUsage index={index} conversation={conversation} isSubmitting={isSubmitting} />
+              <ReasoningEffortControl
+                conversation={conversation}
+                disabled={disableInputs || isSubmitting}
+              />
               {SpeechToText && (
                 <AudioRecorder
                   methods={methods}
@@ -458,6 +463,9 @@ function ChatFormWrapper({ index = 0, placeholder }: { index?: number; placehold
       conversation?.useResponsesApi,
       conversation?.model,
       conversation?.maxContextTokens,
+      conversation?.reasoning_effort,
+      conversation?.effort,
+      conversation?.thinkingLevel,
       hasMessages,
     ],
   );

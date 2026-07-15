@@ -1,5 +1,14 @@
-import { EModelEndpoint, ReasoningEffort } from './types';
-import { applyModelAwareDefaults, paramSettings } from './parameterSettings';
+import {
+  AnthropicEffort,
+  EModelEndpoint,
+  ReasoningEffort,
+  ThinkingLevel,
+} from './types';
+import {
+  applyModelAwareDefaults,
+  getInlineReasoningConfig,
+  paramSettings,
+} from './parameterSettings';
 import type { SettingDefinition } from './generate';
 
 const googleParams = paramSettings[EModelEndpoint.google] as SettingDefinition[];
@@ -76,5 +85,80 @@ describe('OpenAI reasoning effort', () => {
       ReasoningEffort.max,
       ReasoningEffort.ultra,
     ]);
+  });
+});
+
+describe('getInlineReasoningConfig', () => {
+  const resolve = (endpoint: string, model: string, endpointType?: string) =>
+    getInlineReasoningConfig({ endpoint, endpointType, model });
+
+  it('exposes Ultra only for GPT 5.6 and newer profiles', () => {
+    expect(resolve(EModelEndpoint.openAI, 'gpt-5.6-sol')?.options).toEqual([
+      '',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+      'max',
+      'ultra',
+    ]);
+    expect(resolve(EModelEndpoint.openAI, 'gpt-5.5')?.options).not.toContain('ultra');
+  });
+
+  it('uses smaller profiles for earlier GPT-5 and o-series models', () => {
+    expect(resolve(EModelEndpoint.openAI, 'gpt-5.2')?.options).toEqual([
+      '',
+      'none',
+      'low',
+      'medium',
+      'high',
+      'xhigh',
+    ]);
+    expect(resolve(EModelEndpoint.openAI, 'gpt-5')?.options).toEqual([
+      '',
+      'minimal',
+      'low',
+      'medium',
+      'high',
+    ]);
+    expect(resolve(EModelEndpoint.openAI, 'o3')?.options).toEqual(['', 'low', 'medium', 'high']);
+  });
+
+  it('does not show a qualitative control for non-reasoning OpenAI models', () => {
+    expect(resolve(EModelEndpoint.openAI, 'gpt-4o')).toBeNull();
+  });
+
+  it('uses the xAI low/high profile for Grok reasoning models', () => {
+    const config = resolve('Grok', 'grok-3-mini', EModelEndpoint.custom);
+    expect(config?.parameter).toBe('reasoning_effort');
+    expect(config?.options).toEqual(['', ReasoningEffort.low, ReasoningEffort.high]);
+    expect(resolve('Grok', 'grok-4', EModelEndpoint.custom)).toBeNull();
+  });
+
+  it('uses Anthropic effort only for adaptive-thinking Claude models', () => {
+    const config = resolve(EModelEndpoint.anthropic, 'claude-opus-4-6');
+    expect(config?.parameter).toBe('effort');
+    expect(config?.options).toEqual([
+      '',
+      AnthropicEffort.low,
+      AnthropicEffort.medium,
+      AnthropicEffort.high,
+      AnthropicEffort.xhigh,
+      AnthropicEffort.max,
+    ]);
+    expect(resolve(EModelEndpoint.anthropic, 'claude-3-5-sonnet-latest')).toBeNull();
+  });
+
+  it('uses thinkingLevel for Gemini 3+ but not numeric-budget Gemini models', () => {
+    const config = resolve(EModelEndpoint.google, 'gemini-3.1-pro-preview');
+    expect(config?.parameter).toBe('thinkingLevel');
+    expect(config?.options).toEqual([
+      '',
+      ThinkingLevel.minimal,
+      ThinkingLevel.low,
+      ThinkingLevel.medium,
+      ThinkingLevel.high,
+    ]);
+    expect(resolve(EModelEndpoint.google, 'gemini-2.5-pro')).toBeNull();
   });
 });

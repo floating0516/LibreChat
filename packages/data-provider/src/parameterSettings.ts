@@ -13,6 +13,7 @@ import {
   BedrockProviders,
   anthropicSettings,
 } from './types';
+import { supportsAdaptiveThinking } from './bedrock';
 import { SettingDefinition, SettingsConfiguration } from './generate';
 
 // Base definitions
@@ -1221,4 +1222,147 @@ export function applyModelAwareDefaults(
       ? { ...setting, default: googleSettings.maxOutputTokens.reset(model) }
       : setting,
   );
+}
+
+export type InlineReasoningParameter = 'reasoning_effort' | 'effort' | 'thinkingLevel';
+
+export type InlineReasoningConfig = {
+  parameter: InlineReasoningParameter;
+  options: readonly string[];
+  defaultValue: string;
+};
+
+export const inlineReasoningParameterKeys = new Set<InlineReasoningParameter>([
+  'reasoning_effort',
+  'effort',
+  'thinkingLevel',
+]);
+
+const openAIStandardEffort = [
+  ReasoningEffort.unset,
+  ReasoningEffort.low,
+  ReasoningEffort.medium,
+  ReasoningEffort.high,
+] as const;
+const openAIMinimalEffort = [
+  ReasoningEffort.unset,
+  ReasoningEffort.minimal,
+  ...openAIStandardEffort.slice(1),
+] as const;
+const openAIXHighEffort = [
+  ReasoningEffort.unset,
+  ReasoningEffort.none,
+  ReasoningEffort.low,
+  ReasoningEffort.medium,
+  ReasoningEffort.high,
+  ReasoningEffort.xhigh,
+] as const;
+const openAIMaxEffort = [
+  ReasoningEffort.unset,
+  ReasoningEffort.low,
+  ReasoningEffort.medium,
+  ReasoningEffort.high,
+  ReasoningEffort.xhigh,
+  ReasoningEffort.max,
+] as const;
+const openAIUltraEffort = [...openAIMaxEffort, ReasoningEffort.ultra] as const;
+const grokReasoningEffort = [
+  ReasoningEffort.unset,
+  ReasoningEffort.low,
+  ReasoningEffort.high,
+] as const;
+const anthropicAdaptiveEffort = [
+  AnthropicEffort.unset,
+  AnthropicEffort.low,
+  AnthropicEffort.medium,
+  AnthropicEffort.high,
+  AnthropicEffort.xhigh,
+  AnthropicEffort.max,
+] as const;
+const googleThinkingLevel = [
+  ThinkingLevel.unset,
+  ThinkingLevel.minimal,
+  ThinkingLevel.low,
+  ThinkingLevel.medium,
+  ThinkingLevel.high,
+] as const;
+
+function createInlineReasoningConfig(
+  parameter: InlineReasoningParameter,
+  options: readonly string[],
+): InlineReasoningConfig {
+  return { parameter, options, defaultValue: options[0] ?? '' };
+}
+
+/**
+ * Returns the qualitative reasoning control supported by the selected model.
+ * Unknown or numeric-budget-only models intentionally return null.
+ */
+export function getInlineReasoningConfig({
+  endpoint,
+  endpointType,
+  model,
+}: {
+  endpoint?: string | null;
+  endpointType?: string | null;
+  model?: string | null;
+}): InlineReasoningConfig | null {
+  if (!model) {
+    return null;
+  }
+
+  const normalizedModel = model.toLowerCase();
+  const matchesEndpoint = (target: EModelEndpoint) => endpoint === target || endpointType === target;
+
+  if (matchesEndpoint(EModelEndpoint.anthropic)) {
+    return supportsAdaptiveThinking(normalizedModel)
+      ? createInlineReasoningConfig('effort', anthropicAdaptiveEffort)
+      : null;
+  }
+
+  if (matchesEndpoint(EModelEndpoint.google)) {
+    const supportsThinkingLevel = /gemini-([3-9]|\d{2,})|gemma-([4-9]|\d{2,})/.test(
+      normalizedModel,
+    );
+    return supportsThinkingLevel
+      ? createInlineReasoningConfig('thinkingLevel', googleThinkingLevel)
+      : null;
+  }
+
+  const isOpenAICompatible =
+    matchesEndpoint(EModelEndpoint.openAI) ||
+    matchesEndpoint(EModelEndpoint.azureOpenAI) ||
+    matchesEndpoint(EModelEndpoint.custom);
+  if (!isOpenAICompatible) {
+    return null;
+  }
+
+  if (/grok[-_.].*(?:mini|reasoning)/.test(normalizedModel)) {
+    return createInlineReasoningConfig('reasoning_effort', grokReasoningEffort);
+  }
+
+  const gptVersion = normalizedModel.match(/(?:^|\/)gpt[-_.]?(\d+)(?:[.-](\d+))?/);
+  if (gptVersion) {
+    const major = Number(gptVersion[1]);
+    const minor = Number(gptVersion[2] ?? 0);
+    if (major > 5 || (major === 5 && minor >= 6)) {
+      return createInlineReasoningConfig('reasoning_effort', openAIUltraEffort);
+    }
+    if (major === 5 && minor === 5) {
+      return createInlineReasoningConfig('reasoning_effort', openAIMaxEffort);
+    }
+    if (major === 5 && minor >= 2) {
+      return createInlineReasoningConfig('reasoning_effort', openAIXHighEffort);
+    }
+    if (major === 5) {
+      return createInlineReasoningConfig('reasoning_effort', openAIMinimalEffort);
+    }
+    return null;
+  }
+
+  if (/(?:^|\/)o\d+(?:[-_.]|$)/.test(normalizedModel)) {
+    return createInlineReasoningConfig('reasoning_effort', openAIStandardEffort);
+  }
+
+  return null;
 }

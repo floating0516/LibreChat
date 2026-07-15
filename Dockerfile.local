@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.2
+ARG LIBRECHAT_VERSION=v0.8.7.3
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -16,6 +16,9 @@ COPY --chown=node:node packages/data-provider/src/schemas.ts /app/packages/data-
 COPY --chown=node:node packages/data-provider/src/parameterSettings.ts /app/packages/data-provider/src/parameterSettings.ts
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
+COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
+COPY --chown=node:node client/src/components/Chat/Input/ChatForm.tsx /app/client/src/components/Chat/Input/ChatForm.tsx
+COPY --chown=node:node client/src/components/Chat/Input/ReasoningEffortControl.tsx /app/client/src/components/Chat/Input/ReasoningEffortControl.tsx
 COPY --chown=node:node client/src/locales/en/translation.json /app/client/src/locales/en/translation.json
 COPY --chown=node:node client/src/locales/zh-Hans/translation.json /app/client/src/locales/zh-Hans/translation.json
 COPY --chown=node:node client/public/assets/grok.svg /app/client/public/assets/grok.svg
