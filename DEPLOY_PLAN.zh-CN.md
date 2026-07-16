@@ -36,15 +36,17 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 当前主机只有约 3.6 GiB RAM，且未部署 RAG API 或 Code Interpreter API，因此 `fileSearch` 与 `runCode` 保持关闭，Agent 能力也不暴露 `file_search` 或 `execute_code`。Artifacts、网页搜索、MCP、上下文文件、Skills、Actions、Subagents 和工具链能力仍可使用；需要沙箱执行代码或向量检索时，应先增加主机资源或接入独立的远程后端。
 
-## 本地定制镜像
+## 定制镜像与远程构建
 
-本目录的 Claude/Grok 渠道包含本地模型发现补丁。首次部署或修改该补丁后，先构建派生镜像，再将 `.env` 中的 `LIBRECHAT_IMAGE` 设为输出的标签：
+本目录的 Claude/Grok 渠道包含定制模型发现补丁。新的本地修订先提交并推送到 fork 的维护分支，再通过专用 GitHub Actions workflow 构建单架构 AMD64 镜像、发布不可变 GHCR tag/digest，并由本机下载经过校验的构建元数据和镜像：
 
 ```bash
-./scripts/build-local-image.sh
+./scripts/build-remote-image.sh
 ```
 
-构建脚本从 `deployment/version.env` 生成 `librechat-local:v0.8.7.5`，在镜像内注入同一界面版本，并重编译 data-provider、API 包和浏览器客户端。每次发布新的本地修改前递增 `LIBRECHAT_LOCAL_REVISION`，不要覆盖已经存在的镜像标签。随后执行 `./scripts/preflight.sh` 和 `./scripts/deploy.sh`；部署脚本会识别本地镜像，不会重新拉取并覆盖它。
+远程构建从 `deployment/version.env` 生成四段版本和 `ghcr.io/floating0516/librechat-local:vX.Y.Z.N`，使用 `Dockerfile.local` 重编译 data-provider、API 包和浏览器客户端。workflow 会验证镜像版本、关键产物、模型门控、临时依赖清理和 LangChain Responses 回归，并输出包含 commit、版本和 digest 的校验元数据。本机脚本只接受与当前已推送 commit 完全一致的元数据，按 digest 拉取后再标记为 `librechat-local:vX.Y.Z.N`；它不会修改 `.env` 或部署服务。
+
+每次发布新的本地修改前递增 `LIBRECHAT_LOCAL_REVISION`，不要覆盖本地或 GHCR 已存在的不可变标签。远程镜像验证后，只修改 `.env` 的 `LIBRECHAT_IMAGE` 行，执行 preflight，并用 `compose up -d --no-deps api` 只重建 API。仅当 GitHub Actions 或 GHCR 明确不可用且已经报告原因时，才使用 `./scripts/build-local-image.sh` 作为本机回退。
 
 `v0.8.7.5` 对基础镜像中的 `@langchain/openai@1.4.5` 应用版本锁定的 Responses 转换补丁，使缺省或为 `null` 的 `output_text.annotations` 按空数组处理。构建会精确核对待修改源码，并分别执行 CommonJS 与 ES module 行为验证；依赖版本或上游代码不匹配时构建会直接失败。
 

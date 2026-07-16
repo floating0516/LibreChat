@@ -1,0 +1,225 @@
+name: Build Local LibreChat Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: Exact commit to build
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: librechat-local-image-${{ inputs.commit_sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify AMD64 image
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_sha }}
+          fetch-depth: 0
+
+      - name: Validate release inputs
+        id: release
+        shell: bash
+        env:
+          EXPECTED_COMMIT: ${{ inputs.commit_sha }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$EXPECTED_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo '::error::commit_sha must be a full 40-character commit SHA.'
+            exit 1
+          fi
+
+          actual_commit="$(git rev-parse HEAD)"
+          if [[ "$actual_commit" != "$EXPECTED_COMMIT" ]]; then
+            echo "::error::Checked out $actual_commit instead of $EXPECTED_COMMIT."
+            exit 1
+          fi
+
+          source deployment/version.env
+          version="v${LIBRECHAT_UPSTREAM_VERSION}.${LIBRECHAT_LOCAL_REVISION}"
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid local release version: $version"
+            exit 1
+          fi
+          if [[ ! "$LIBRECHAT_BASE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo '::error::Invalid LIBRECHAT_BASE_DIGEST.'
+            exit 1
+          fi
+          if ! grep -Fqx "ARG LIBRECHAT_VERSION=$version" Dockerfile.local; then
+            echo "::error::Dockerfile.local does not default to $version."
+            exit 1
+          fi
+
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/librechat-local:${version}"
+          base_image="librechat/librechat:v${LIBRECHAT_UPSTREAM_VERSION}@${LIBRECHAT_BASE_DIGEST}"
+          {
+            echo "commit=$actual_commit"
+            echo "version=$version"
+            echo "image=$image"
+            echo "base_image=$base_image"
+          } >> "$GITHUB_OUTPUT"
+          echo "BUILD_STARTED_EPOCH=$(date +%s)" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Reject an existing immutable tag
+        shell: bash
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+        run: |
+          set -euo pipefail
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "::error::The immutable image tag already exists: $IMAGE"
+            exit 1
+          fi
+
+      - name: Build and publish image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.local
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.release.outputs.image }}
+          build-args: |
+            LIBRECHAT_BASE_IMAGE=${{ steps.release.outputs.base_image }}
+            LIBRECHAT_VERSION=${{ steps.release.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.revision=${{ steps.release.outputs.commit }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha,scope=librechat-local-amd64
+          cache-to: type=gha,mode=max,scope=librechat-local-amd64
+
+      - name: Verify published image
+        shell: bash
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          image_ref="${IMAGE}@${DIGEST}"
+          docker pull "$image_ref"
+
+          docker run --rm --network=none \
+            -v "$GITHUB_WORKSPACE/scripts/langchain/verify.cjs:/work/verify.cjs:ro" \
+            --entrypoint node \
+            "$image_ref" \
+            /work/verify.cjs
+
+          docker run --rm --network=none \
+            -e EXPECTED_VERSION="$VERSION" \
+            --entrypoint node \
+            "$image_ref" \
+            --input-type=module -e '
+              import fs from "node:fs";
+              const pkg = JSON.parse(fs.readFileSync("/app/package.json", "utf8"));
+              const provider = await import("/app/packages/data-provider/dist/index.mjs");
+              if (pkg.version !== process.env.EXPECTED_VERSION) process.exit(1);
+              if (provider.Constants.VERSION !== process.env.EXPECTED_VERSION) process.exit(1);
+              if (provider.initialModelsConfig.openAI.length !== 0) process.exit(1);
+              if (provider.initialModelsConfig.anthropic.length !== 0) process.exit(1);
+            '
+
+          docker run --rm --network=none \
+            --entrypoint sh \
+            "$image_ref" \
+            -lc '
+              set -eu
+              test -f /app/client/dist/index.html
+              test -f /app/packages/data-provider/dist/index.mjs
+              test -f /app/packages/api/dist/index.cjs
+              test ! -e /tmp/librechat-build
+              test ! -e /tmp/librechat-patches
+              test ! -L /app/client/node_modules/vite
+              test ! -L /app/packages/data-provider/node_modules/tsdown
+              test ! -L /app/packages/api/node_modules/tsdown
+            '
+
+          label="$(docker image inspect "$image_ref" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
+          test "$label" = "$VERSION"
+
+      - name: Write immutable image metadata
+        id: metadata
+        shell: bash
+        env:
+          COMMIT: ${{ steps.release.outputs.commit }}
+          VERSION: ${{ steps.release.outputs.version }}
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p release-metadata
+          duration_seconds="$(( $(date +%s) - BUILD_STARTED_EPOCH ))"
+          jq -n \
+            --arg commit "$COMMIT" \
+            --arg version "$VERSION" \
+            --arg image "$IMAGE" \
+            --arg digest "$DIGEST" \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg run_url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --arg built_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --argjson duration_seconds "$duration_seconds" \
+            '{
+              commit: $commit,
+              version: $version,
+              image: $image,
+              digest: $digest,
+              repository: $repository,
+              run_url: $run_url,
+              built_at: $built_at,
+              duration_seconds: $duration_seconds
+            }' > release-metadata/image.json
+          (cd release-metadata && sha256sum image.json > image.json.sha256)
+          echo "duration_seconds=$duration_seconds" >> "$GITHUB_OUTPUT"
+
+      - name: Upload image metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: librechat-local-image-metadata
+          path: release-metadata/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish run summary
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+          DURATION_SECONDS: ${{ steps.metadata.outputs.duration_seconds }}
+        run: |
+          {
+            echo '## LibreChat local image'
+            echo
+            echo "- Version: \`$VERSION\`"
+            echo "- Commit: \`$COMMIT\`"
+            echo "- Image: \`$IMAGE\`"
+            echo "- Digest: \`$DIGEST\`"
+            echo "- Build and verification: \`${DURATION_SECONDS}s\`"
+          } >> "$GITHUB_STEP_SUMMARY"
