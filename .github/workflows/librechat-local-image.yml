@@ -132,6 +132,12 @@ jobs:
             /work/verify.cjs
 
           docker run --rm --network=none \
+            -v "$GITHUB_WORKSPACE/scripts/lihe/verify.cjs:/work/verify.cjs:ro" \
+            --entrypoint node \
+            "$image_ref" \
+            /work/verify.cjs
+
+          docker run --rm --network=none \
             -e EXPECTED_VERSION="$VERSION" \
             --entrypoint node \
             "$image_ref" \
@@ -143,6 +149,16 @@ jobs:
               if (provider.Constants.VERSION !== process.env.EXPECTED_VERSION) process.exit(1);
               if (provider.initialModelsConfig.openAI.length !== 0) process.exit(1);
               if (provider.initialModelsConfig.anthropic.length !== 0) process.exit(1);
+              if (typeof provider.liheTokenResponseSchema?.safeParse !== "function") process.exit(1);
+            '
+
+          docker run --rm --network=none \
+            --entrypoint node \
+            "$image_ref" \
+            -e '
+              const api = require("/app/packages/api/dist/index.cjs");
+              if (typeof api.createLiheHandlers !== "function") process.exit(1);
+              if (typeof api.verifyLiheState !== "function") process.exit(1);
             '
 
           docker run --rm --network=none \
@@ -153,6 +169,7 @@ jobs:
               test -f /app/client/dist/index.html
               test -f /app/packages/data-provider/dist/index.mjs
               test -f /app/packages/api/dist/index.cjs
+              test -f /app/api/server/routes/lihe.js
               test ! -e /tmp/librechat-build
               test ! -e /tmp/librechat-patches
               test ! -L /app/client/node_modules/vite

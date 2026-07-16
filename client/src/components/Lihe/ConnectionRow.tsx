@@ -1,0 +1,107 @@
+import { useNavigate } from 'react-router-dom';
+import {
+  Button,
+  AlertDialog,
+  AlertDialogTitle,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogDescription,
+  useToastContext,
+} from '@librechat/client';
+import { CheckCircle2, Link2, RefreshCw, Unplug } from 'lucide-react';
+import { useLiheConnectionStatusQuery, useDisconnectLiheConnectionMutation } from '~/data-provider';
+import { NotificationSeverity } from '~/common';
+import { useLocalize } from '~/hooks';
+
+export default function LiheConnectionRow() {
+  const localize = useLocalize();
+  const navigate = useNavigate();
+  const { showToast } = useToastContext();
+  const status = useLiheConnectionStatusQuery();
+  const disconnect = useDisconnectLiheConnectionMutation();
+
+  if (!status.data?.enabled) {
+    return null;
+  }
+
+  const isConnected = status.data.connected;
+  const hasConnection = isConnected || status.data.needsReconnect;
+  const connect = () => navigate(`/connect/lihe${hasConnection ? '?reconnect=1' : ''}`);
+  const handleDisconnect = () => {
+    disconnect.mutate(undefined, {
+      onSuccess: () =>
+        showToast({
+          message: localize('com_ui_lihe_disconnect_success'),
+          status: NotificationSeverity.SUCCESS,
+        }),
+      onError: () =>
+        showToast({
+          message: localize('com_ui_lihe_disconnect_failed'),
+          status: NotificationSeverity.ERROR,
+        }),
+    });
+  };
+
+  return (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center" aria-hidden="true">
+          {isConnected ? (
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+          ) : (
+            <Link2 className="h-5 w-5 text-text-secondary" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate font-medium text-text-primary">
+            {localize('com_ui_lihe_connection')}
+          </div>
+          <div className="truncate text-xs text-text-secondary">
+            {isConnected
+              ? status.data.accountLabel || localize('com_ui_lihe_status_connected')
+              : status.data.needsReconnect
+                ? localize('com_ui_lihe_status_reconnect')
+                : localize('com_ui_lihe_status_disconnected')}
+          </div>
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <Button variant="outline" onClick={connect}>
+          {hasConnection ? (
+            <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
+          ) : (
+            <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          {hasConnection ? localize('com_ui_lihe_reconnect') : localize('com_ui_lihe_connect')}
+        </Button>
+        {hasConnection && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" aria-label={localize('com_ui_lihe_disconnect')}>
+                <Unplug className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>{localize('com_ui_lihe_disconnect_title')}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {localize('com_ui_lihe_disconnect_description')}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>{localize('com_ui_cancel')}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDisconnect} disabled={disconnect.isLoading}>
+                  {localize('com_ui_lihe_disconnect')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -403,6 +403,7 @@ if (cluster.isMaster) {
     app.use('/api/admin/skills', routes.adminSkills);
     app.use('/api/actions', routes.actions);
     app.use('/api/keys', routes.keys);
+    app.use('/api/integrations/lihe', routes.lihe);
     app.use('/api/api-keys', routes.apiKeys);
     app.use('/api/user', routes.user);
     app.use('/api/search', routes.search);

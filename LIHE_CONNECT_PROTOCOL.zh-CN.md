@@ -1,0 +1,186 @@
+# Lihe 对话站连接协议 v1
+
+本文档是 `api.lihe.chat` 与 `lihe.chat` 的联调契约。API 端和对话站端必须按本文档实现，不得把长期 Token 放进 URL、浏览器存储、前端 JavaScript 日志或访问日志。
+
+## 固定信息
+
+| 项目               | 生产值                                             |
+| ------------------ | -------------------------------------------------- |
+| API 平台           | `https://api.lihe.chat`                            |
+| 对话站             | `https://lihe.chat`                                |
+| `client_id`        | `lihe-chat`                                        |
+| API 站按钮         | `https://lihe.chat/connect/lihe`                   |
+| OAuth 回调         | `https://lihe.chat/api/integrations/lihe/callback` |
+| 授权范围           | `models:read chat:write`                           |
+| 支持的 Provider 值 | `openAI`、`anthropic`、`google`                    |
+
+`client_secret` 由两端管理员通过安全渠道生成和保存，只允许服务器读取。Token 与撤销接口采用 OAuth `client_secret_basic`，即 HTTP `Authorization: Basic base64(client_id:client_secret)`。
+
+## 1. API 站按钮
+
+API 用户登录后点击“导入对话站”，浏览器在当前标签页打开：
+
+```text
+https://lihe.chat/connect/lihe
+```
+
+按钮不能附带 API Key、Token、用户 ID、邮箱或任意回调地址。对话站负责创建 `state` 和 PKCE，再跳回 API 平台授权。
+
+## 2. 授权接口
+
+```http
+GET /oauth/authorize
+```
+
+查询参数：
+
+| 字段                    | 要求                            |
+| ----------------------- | ------------------------------- |
+| `response_type`         | 固定为 `code`                   |
+| `client_id`             | 固定为 `lihe-chat`              |
+| `redirect_uri`          | 必须精确匹配登记值              |
+| `scope`                 | 固定为 `models:read chat:write` |
+| `state`                 | 原样返回，不记录日志            |
+| `code_challenge`        | PKCE S256 challenge             |
+| `code_challenge_method` | 固定为 `S256`                   |
+
+API 端必须验证登录用户、`client_id`、回调地址和 scope。授权成功后生成至少 256 bit 随机 code，只保存 code 哈希，并记录用户、PKCE challenge、回调地址、scope、创建时间、使用状态。code 在 60 秒后失效且只能原子消费一次。
+
+成功跳转：
+
+```text
+https://lihe.chat/api/integrations/lihe/callback?code=...&state=...
+```
+
+用户拒绝时：
+
+```text
+https://lihe.chat/api/integrations/lihe/callback?error=access_denied&state=...
+```
+
+## 3. Token 兑换接口
+
+```http
+POST /oauth/token
+Authorization: Basic <client credentials>
+Content-Type: application/x-www-form-urlencoded
+Accept: application/json
+```
+
+表单字段：
+
+```text
+grant_type=authorization_code
+client_id=lihe-chat
+code=<single-use-code>
+redirect_uri=https://lihe.chat/api/integrations/lihe/callback
+code_verifier=<pkce-verifier>
+```
+
+成功响应必须是：
+
+```json
+{
+  "access_token": "lhc_...",
+  "token_type": "Bearer",
+  "scope": "models:read chat:write",
+  "providers": ["openAI", "anthropic"],
+  "account_id": "opaque-account-id",
+  "account_label": "masked-or-display-name",
+  "expires_in": null
+}
+```
+
+要求：
+
+- `access_token` 是独立的对话站 Token，长期有效，直到撤销。
+- `expires_in` 必须为 `null` 或省略；返回数字会被对话站拒绝。
+- `providers` 至少一项，只能使用固定大小写的允许值。
+- `account_id` 和 `account_label` 可省略，不能包含密钥或敏感身份信息。
+- API 数据库只保存 Token 的安全哈希，明文只在本响应返回一次。
+- Token 只能查询模型和发起聊天，不能管理账户、余额、支付或其他 Key。
+
+OAuth 错误使用标准状态码和响应，例如：
+
+```json
+{
+  "error": "invalid_grant",
+  "error_description": "Authorization code is invalid, expired, or already used"
+}
+```
+
+错误描述不得包含 code、Token、client secret 或数据库内容。
+
+## 4. Token 验证
+
+对话站兑换后立即调用：
+
+```http
+GET /v1/models
+Authorization: Bearer <access_token>
+Accept: application/json
+```
+
+API 端必须返回 OpenAI 兼容结构，且至少有一个模型：
+
+```json
+{
+  "data": [{ "id": "model-id" }]
+}
+```
+
+验证失败时，对话站不会保存 Token，并会尝试调用撤销接口。
+
+## 5. 对话请求认证
+
+导入成功后，LibreChat 会把同一个专用 Token 当作对应 Provider 的用户 Key 使用。API 端不能只让该 Token 通过 `/v1/models`，还必须在实际对话路由识别它：
+
+| Provider    | API 路由                                | Token 位置                          |
+| ----------- | --------------------------------------- | ----------------------------------- |
+| `openAI`    | `/v1/chat/completions`、`/v1/responses` | `Authorization: Bearer <token>`     |
+| `anthropic` | `/v1/messages`                          | `x-api-key: <token>`                |
+| `google`    | API 端现有的 Gemini 兼容路由            | 按 Gemini SDK 的 API Key 请求头处理 |
+
+API 端收到请求后必须先规范化认证头，再用 Token 安全哈希查询同一条专用 Token 记录，并依次验证：未撤销、账号可用、包含 `chat:write`、当前路由属于 `providers` 白名单。禁止从查询参数读取 Token。
+
+- Token 无效、已撤销或账号停用时返回 `401`。
+- Token 有效但 scope 或 Provider 不允许时返回 `403`。
+- 流式与非流式响应继续沿用 API 站现有协议，不能因为使用专用 Token 而改变 SSE/JSON 格式。
+- `google` 默认不启用；只有 API 端 Gemini 代理、对话站 `GOOGLE_REVERSE_PROXY` 和 Token 请求头适配都完成联调后，才允许在 `providers` 中返回 `google`。
+
+## 6. 撤销接口
+
+```http
+POST /oauth/revoke
+Authorization: Basic <client credentials>
+Content-Type: application/x-www-form-urlencoded
+```
+
+表单字段：
+
+```text
+token=<access_token>
+token_type_hint=access_token
+```
+
+遵循 RFC 7009：Token 已撤销或不存在时也返回成功，保证重复操作安全。用户在 API 平台撤销、账号停用或管理员禁用后，模型请求必须立即返回 `401` 或 `403`。
+
+## 7. 安全与日志
+
+- 只允许 HTTPS，生产环境不得接受 HTTP 回调。
+- 回调地址使用精确白名单，不允许通配符或请求参数覆盖。
+- 授权和兑换接口需要用户/IP 限流，连续失败应记录安全事件。
+- code 必须单次原子消费，并使用数据库 TTL 自动清理。
+- Token、code、state、PKCE verifier 和 client secret 不进入日志、监控属性或错误响应。
+- 每次请求可记录随机 `request_id`、结果、耗时和错误类别，用于排障。
+- API 端应提供用户可见的 `lihe.chat` 专用 Token 记录和撤销按钮。
+
+## 8. 联调验收
+
+1. 已登录用户从按钮到新对话的 P95 小于 3 秒。
+2. code 过期、重复使用、错误 PKCE、错误回调地址和错误 client secret 均被拒绝。
+3. 成功导入后刷新浏览器或重启对话站仍然有效。
+4. 对话站解除绑定后 Token 被撤销，旧 Provider Key 正确恢复。
+5. API 平台主动撤销后，后续聊天请求立即失败且可重新绑定。
+6. OpenAI 与 Anthropic 均能用同一专用 Token 完成一次流式对话；不支持的 Provider 返回 `403`。
+7. URL、浏览器存储、Cloudflare 日志和两端应用日志中均不存在长期 Token。

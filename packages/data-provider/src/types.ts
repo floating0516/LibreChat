@@ -772,6 +772,8 @@ export type TBalanceResponse = {
   refillAmount?: number;
 };
 
+export * from './types/lihe';
+
 /* -------------------------------------------------------------------------- */
 /* Skill UI extensions (not yet persisted — phase 2 backend will fill these)  */
 /* -------------------------------------------------------------------------- */

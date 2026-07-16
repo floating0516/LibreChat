@@ -103,6 +103,14 @@ export const revokeUserKey = (name: string) => `${keysEndpoint}/${name}`;
 
 export const revokeAllUserKeys = () => `${keysEndpoint}?all=true`;
 
+const liheConnectionEndpoint = `${BASE_URL}/api/integrations/lihe`;
+
+export const liheConnectionStatus = () => `${liheConnectionEndpoint}/status`;
+
+export const liheConnectionStart = () => `${liheConnectionEndpoint}/start`;
+
+export const liheConnectionDisconnect = () => `${liheConnectionEndpoint}/disconnect`;
+
 const apiKeysEndpoint = `${BASE_URL}/api/api-keys`;
 
 export const apiKeys = () => apiKeysEndpoint;

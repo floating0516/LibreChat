@@ -63,6 +63,8 @@ export * from './tools';
 export * from './web';
 /* Langfuse */
 export * from './langfuse';
+/* Lihe Connect */
+export * from './lihe';
 /* Cache */
 export * from './cache';
 /* Shared Links */

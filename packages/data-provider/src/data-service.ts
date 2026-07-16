@@ -11,6 +11,7 @@ import * as ag from './types/agents';
 import * as q from './types/queries';
 import * as sk from './types/skills';
 import * as f from './types/files';
+import * as l from './types/lihe';
 import * as config from './config';
 import {
   modelCapabilitiesConfigSchema,
@@ -116,6 +117,18 @@ export function updateUserKey(payload: t.TUpdateUserKeyRequest) {
   }
 
   return request.put(endpoints.keys(), payload);
+}
+
+export function getLiheConnectionStatus(): Promise<l.TLiheConnectionStatus> {
+  return request.get(endpoints.liheConnectionStatus());
+}
+
+export function startLiheConnection(payload: l.TLiheStartRequest): Promise<l.TLiheStartResponse> {
+  return request.post(endpoints.liheConnectionStart(), payload);
+}
+
+export function disconnectLiheConnection(): Promise<l.TLiheDisconnectResponse> {
+  return request.post(endpoints.liheConnectionDisconnect());
 }
 
 export function getAgentApiKeys(): Promise<t.TAgentApiKeyListResponse> {

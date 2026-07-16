@@ -9,7 +9,8 @@ import {
   OGDialogTrigger,
   OGDialogContent,
 } from '@librechat/client';
-import { useGetEndpointsQuery } from '~/data-provider';
+import { useGetEndpointsQuery, useLiheConnectionStatusQuery } from '~/data-provider';
+import { LiheConnectionRow } from '~/components/Lihe';
 import useProviderKeys from './useProviderKeys';
 import ProviderKeyRow from './ProviderKeyRow';
 import { useLocalize } from '~/hooks';
@@ -18,7 +19,9 @@ export default function ProviderKeys() {
   const localize = useLocalize();
   const [open, setOpen] = useState(false);
   const { data: endpointsConfig } = useGetEndpointsQuery();
+  const { data: liheStatus } = useLiheConnectionStatusQuery();
   const endpoints = useProviderKeys();
+  const managedProviders = new Set<string>(liheStatus?.connected ? liheStatus.providers : []);
 
   return (
     <div className="flex items-center justify-between">
@@ -43,13 +46,16 @@ export default function ProviderKeys() {
           </OGDialogHeader>
           {endpointsConfig && (
             <div className="divide-y divide-border-light">
-              {endpoints.map((endpoint) => (
-                <ProviderKeyRow
-                  key={endpoint}
-                  endpoint={endpoint}
-                  endpointsConfig={endpointsConfig}
-                />
-              ))}
+              <LiheConnectionRow />
+              {endpoints
+                .filter((endpoint) => !managedProviders.has(endpoint))
+                .map((endpoint) => (
+                  <ProviderKeyRow
+                    key={endpoint}
+                    endpoint={endpoint}
+                    endpointsConfig={endpointsConfig}
+                  />
+                ))}
             </div>
           )}
         </OGDialogContent>
