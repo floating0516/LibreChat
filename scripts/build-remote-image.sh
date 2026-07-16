@@ -43,7 +43,8 @@ if ! git diff --quiet || ! git diff --cached --quiet; then
   exit 1
 fi
 
-repo="$(gh repo view --json nameWithOwner --jq .nameWithOwner)"
+origin_url="$(git remote get-url origin)"
+repo="$(gh repo view "$origin_url" --json nameWithOwner --jq .nameWithOwner)"
 if [[ "$repo" == 'danny-avila/LibreChat' ]]; then
   printf '%s\n' 'Refusing to dispatch a build in the upstream repository.' >&2
   exit 1
