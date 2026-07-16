@@ -4,10 +4,12 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.4
+ARG LIBRECHAT_VERSION=v0.8.7.5
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
+COPY --chown=node:node scripts/langchain/patch.cjs /tmp/librechat-patches/langchain/patch.cjs
+COPY --chown=node:node scripts/langchain/verify.cjs /tmp/librechat-patches/langchain/verify.cjs
 COPY --chown=node:node api/server/services/Config/loadDefaultModels.js /app/api/server/services/Config/loadDefaultModels.js
 COPY --chown=node:node api/server/controllers/ModelController.js /app/api/server/controllers/ModelController.js
 COPY --chown=node:node packages/api/src/endpoints/models.ts /app/packages/api/src/endpoints/models.ts
@@ -30,6 +32,8 @@ COPY --chown=node:node client/public/assets/grok.svg /app/client/public/assets/g
 USER node
 WORKDIR /app
 RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const version = process.argv[1]; if (!/^v[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$/.test(version)) throw new Error("Invalid LibreChat local version"); const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = version; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");' "$LIBRECHAT_VERSION" \
+  && node /tmp/librechat-patches/langchain/patch.cjs \
+  && node /tmp/librechat-patches/langchain/verify.cjs \
   && mkdir -p /tmp/librechat-build /app/client/node_modules/@vitejs /app/client/node_modules/@tanstack /app/packages/client/node_modules /app/packages/data-provider/node_modules/@rollup /app/packages/data-provider/node_modules/@types \
   && npm install --prefix /tmp/librechat-build --no-save --ignore-scripts --package-lock=false \
     --fetch-retries=5 --fetch-retry-mintimeout=15000 --fetch-retry-maxtimeout=600000 \
@@ -84,7 +88,7 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
     /app/packages/data-provider/node_modules/@rollup/plugin-replace \
     /app/packages/data-provider/node_modules/@types/js-yaml \
     /app/packages/data-provider/node_modules/openapi-types \
-  && rm -rf /tmp/librechat-build \
+  && rm -rf /tmp/librechat-build /tmp/librechat-patches \
   ) > /tmp/librechat-local-build.log 2>&1 \
   && rm -f /tmp/librechat-local-build.log \
   || { status=$?; cat /tmp/librechat-local-build.log; exit "$status"; }
