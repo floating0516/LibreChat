@@ -28,6 +28,7 @@ export function useSettingsContext(): SettingsContextValue {
 
   const balanceEnabled = startupConfig?.balance?.enabled === true;
   const isLocalProvider = user?.provider === 'local';
+  const openidAccountLinkingEnabled = startupConfig?.openidAccountLinkingEnabled === true;
   const twoFactorEnabled = user?.twoFactorEnabled === true;
   const allowAccountDeletion = startupConfig?.allowAccountDeletion !== false;
   const aboutEnabled = startupConfig?.interface?.buildInfo !== false;
@@ -47,6 +48,7 @@ export function useSettingsContext(): SettingsContextValue {
       hasMultiConvo: hasMultiConvoBool,
       hasPrompts: hasPromptsBool,
       isLocalProvider,
+      openidAccountLinkingEnabled,
       twoFactorEnabled,
       allowAccountDeletion,
       aboutEnabled,
@@ -61,6 +63,7 @@ export function useSettingsContext(): SettingsContextValue {
       hasMultiConvoBool,
       hasPromptsBool,
       isLocalProvider,
+      openidAccountLinkingEnabled,
       twoFactorEnabled,
       allowAccountDeletion,
       aboutEnabled,

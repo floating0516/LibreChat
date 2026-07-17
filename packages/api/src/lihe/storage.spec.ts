@@ -103,6 +103,24 @@ describe('Lihe Connect credential storage', () => {
     expect(keys.get('anthropic')?.value).toBe('original-anthropic');
   });
 
+  it('requires reconnection when stored Token metadata belongs to another OIDC subject', async () => {
+    const { deps } = createMemoryKeys();
+    await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: { ...tokenResponse(firstToken), account_id: 'account-a' },
+    });
+
+    await expect(
+      getLiheConnectionStatus({
+        deps,
+        userId,
+        configuredProviders: ['openAI', 'anthropic'],
+        expectedAccountId: 'account-b',
+      }),
+    ).resolves.toMatchObject({ connected: false, needsReconnect: true });
+  });
+
   it('preserves a provider key changed manually after connection', async () => {
     const { deps, keys } = createMemoryKeys();
     const { connection } = await saveLiheConnection({

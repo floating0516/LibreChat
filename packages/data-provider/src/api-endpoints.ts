@@ -111,6 +111,8 @@ export const liheConnectionStart = () => `${liheConnectionEndpoint}/start`;
 
 export const liheConnectionDisconnect = () => `${liheConnectionEndpoint}/disconnect`;
 
+export const openIdLinkStart = () => `${BASE_URL}/api/auth/openid/link`;
+
 const apiKeysEndpoint = `${BASE_URL}/api/api-keys`;
 
 export const apiKeys = () => apiKeysEndpoint;

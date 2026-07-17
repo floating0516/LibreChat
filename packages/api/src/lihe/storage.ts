@@ -122,10 +122,12 @@ export async function getLiheConnectionStatus({
   deps,
   userId,
   configuredProviders,
+  expectedAccountId,
 }: {
   deps: LiheKeyDependencies;
   userId: string;
   configuredProviders: TLiheProvider[];
+  expectedAccountId?: string;
 }): Promise<Omit<TLiheConnectionStatus, 'enabled'>> {
   const connection = await loadLiheConnection(deps, userId);
   if (!connection) {
@@ -139,10 +141,13 @@ export async function getLiheConnectionStatus({
   }
 
   const snapshots = await readSnapshots(deps, userId, connection.providers);
-  const connected = connection.providers.every(
+  const providerKeysConnected = connection.providers.every(
     (provider) =>
       snapshots.get(provider)?.value === formatProviderKey(provider, connection.accessToken),
   );
+  const accountMatches =
+    expectedAccountId === undefined || connection.accountId === expectedAccountId;
+  const connected = providerKeysConnected && accountMatches;
   return {
     connected,
     needsReconnect: !connected,

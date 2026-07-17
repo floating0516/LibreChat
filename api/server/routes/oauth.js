@@ -9,6 +9,10 @@ const {
   createOpenIDCallbackAuthenticator,
   createSetBalanceConfig,
   getOAuthFailureMessage,
+  hasOpenIdAccountLinkIntent,
+  isEnabled,
+  isOpenIdAccountLinkingEnabled,
+  OPENID_LINK_RESULT_PATH,
   redirectToAuthFailure,
 } = require('@librechat/api');
 const { checkDomainAllowed, loginLimiter, logHeaders } = require('~/server/middleware');
@@ -43,6 +47,33 @@ const authenticateOpenIDCallback = createOpenIDCallbackAuthenticator({
   logger,
   ...authFailureRedirectOptions,
 });
+const openIdLinkResultUrl = `${(domains.client || '').replace(/\/+$/, '')}${OPENID_LINK_RESULT_PATH}`;
+const authenticateOpenIDLinkCallback = createOpenIDCallbackAuthenticator({
+  passport,
+  logger,
+  ...authFailureRedirectOptions,
+  strategy: 'openidLink',
+  failureRedirectUrl: `${openIdLinkResultUrl}?result=error`,
+});
+
+const setOpenIDCallbackHeaders = (_req, res, next) => {
+  res.set({ 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' });
+  next();
+};
+
+const requireOpenIDLoginEnabled = (_req, res, next) => {
+  if (!isEnabled(process.env.ALLOW_SOCIAL_LOGIN)) {
+    return redirectToAuthFailure(res, authFailureRedirectOptions);
+  }
+  next();
+};
+
+const requireOpenIDLinkIntent = (req, res, next) => {
+  if (!isOpenIdAccountLinkingEnabled() || !hasOpenIdAccountLinkIntent(req)) {
+    return res.redirect(`${openIdLinkResultUrl}?result=error`);
+  }
+  next();
+};
 
 router.get('/error', (req, res) => {
   /** A single error message is pushed by passport when authentication fails. */
@@ -113,7 +144,7 @@ router.get(
 /**
  * OpenID Routes
  */
-router.get('/openid', (req, res, next) => {
+router.get('/openid', requireOpenIDLoginEnabled, (req, res, next) => {
   return passport.authenticate('openid', {
     session: false,
     state: randomState(),
@@ -122,10 +153,29 @@ router.get('/openid', (req, res, next) => {
 
 router.get(
   '/openid/callback',
+  setOpenIDCallbackHeaders,
+  requireOpenIDLoginEnabled,
   authenticateOpenIDCallback,
   setBalanceConfig,
   checkDomainAllowed,
   oauthHandler,
+);
+
+router.get('/openid/link', requireOpenIDLinkIntent, (req, res, next) => {
+  return passport.authenticate('openidLink', {
+    session: false,
+    state: randomState(),
+  })(req, res, next);
+});
+
+router.get(
+  '/openid/link/callback',
+  setOpenIDCallbackHeaders,
+  requireOpenIDLinkIntent,
+  authenticateOpenIDLinkCallback,
+  (req, res) => {
+    res.redirect(req.openIdLinkReturnTo || `${openIdLinkResultUrl}?result=connected`);
+  },
 );
 
 /**

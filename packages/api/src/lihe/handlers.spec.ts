@@ -80,7 +80,13 @@ describe('Lihe Connect handlers', () => {
     app.use(express.json());
     app.use(cookieParser());
     app.use((req, _res, next) => {
-      Object.assign(req, { user: { id: 'user-1' } });
+      Object.assign(req, {
+        user: {
+          id: 'user-1',
+          openidId: 'linked-account-with-enforcement-disabled',
+          openidIssuer: 'https://api.lihe.chat',
+        },
+      });
       next();
     });
     app.get('/api/integrations/lihe/status', handlers.status);
@@ -155,5 +161,105 @@ describe('Lihe Connect handlers', () => {
     expect(overScopedCallback.headers.location).toContain('error=token_validation_failed');
     expect(keys.size).toBe(0);
     expect(revocations).toBe(2);
+  });
+
+  it('requires and verifies the OIDC account subject in unified-account mode', async () => {
+    process.env.LIHE_CONNECT_REQUIRE_OPENID_SUBJECT = 'true';
+    const keys = new Map<string, { value: string; expiresAt: Date | null }>();
+    let currentOpenId: string | undefined;
+    let returnedAccountId = 'another-account';
+    let revocations = 0;
+    const keyDeps: LiheKeyDependencies = {
+      getUserKey: async ({ name }) => {
+        const key = keys.get(name);
+        if (!key) {
+          throw new Error('missing key');
+        }
+        return key.value;
+      },
+      getUserKeyExpiry: async ({ name }) => {
+        const key = keys.get(name);
+        return { expiresAt: key ? (key.expiresAt ?? 'never') : null };
+      },
+      updateUserKey: async ({ name, value, expiresAt }) => {
+        keys.set(name, { value, expiresAt: expiresAt ?? null });
+        return null;
+      },
+      deleteUserKey: async ({ name }) => keys.delete(name),
+    };
+    const fetcher: LiheFetch = async (input) => {
+      const url = input.toString();
+      if (url.endsWith('/oauth/token')) {
+        return new Response(
+          JSON.stringify({
+            access_token: 'lhc_subject_bound_token_1234567890',
+            token_type: 'Bearer',
+            scope: 'models:read chat:write',
+            providers: ['openAI', 'anthropic'],
+            account_id: returnedAccountId,
+            expires_in: null,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'gpt-test' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/oauth/revoke')) {
+        revocations += 1;
+      }
+      return new Response(null, { status: 200 });
+    };
+    const flowManager = new FlowStateManager<null>(new Keyv(), { ttl: 60_000, ci: true });
+    const handlers = createLiheHandlers({ ...keyDeps, flowManager, fetcher });
+    const app = express();
+    app.use(express.json());
+    app.use(cookieParser());
+    app.use((req, _res, next) => {
+      Object.assign(req, {
+        user: {
+          id: 'user-1',
+          openidId: currentOpenId,
+          openidIssuer: currentOpenId ? 'https://api.lihe.chat' : undefined,
+        },
+      });
+      next();
+    });
+    app.get('/api/integrations/lihe/status', handlers.status);
+    app.post('/api/integrations/lihe/start', handlers.start);
+    app.get('/api/integrations/lihe/callback', handlers.callback);
+    const agent = request.agent(app);
+
+    const unlinkedStatus = await agent.get('/api/integrations/lihe/status');
+    expect(unlinkedStatus.body.requiresAccountLink).toBe(true);
+    const unlinkedStart = await agent.post('/api/integrations/lihe/start').send({ apiKeyId: '90' });
+    expect(unlinkedStart.status).toBe(409);
+    expect(unlinkedStart.body).toEqual({ error: 'account_link_required' });
+
+    currentOpenId = 'api-account-subject';
+    const mismatchedStart = await agent
+      .post('/api/integrations/lihe/start')
+      .send({ apiKeyId: '90' });
+    const mismatchedUrl = new URL(mismatchedStart.body.authorizationUrl);
+    const mismatchedCallback = await agent.get('/api/integrations/lihe/callback').query({
+      code: 'mismatched-account-code',
+      state: mismatchedUrl.searchParams.get('state'),
+    });
+    expect(mismatchedCallback.headers.location).toContain('error=account_mismatch');
+    expect(keys.size).toBe(0);
+    expect(revocations).toBe(1);
+
+    returnedAccountId = currentOpenId;
+    const matchedStart = await agent.post('/api/integrations/lihe/start').send({ apiKeyId: '90' });
+    const matchedUrl = new URL(matchedStart.body.authorizationUrl);
+    const matchedCallback = await agent.get('/api/integrations/lihe/callback').query({
+      code: 'matched-account-code',
+      state: matchedUrl.searchParams.get('state'),
+    });
+    expect(matchedCallback.headers.location).toBe('/connect/lihe?result=connected');
+    expect(keys.get('anthropic')?.value).toBe('lhc_subject_bound_token_1234567890');
   });
 });

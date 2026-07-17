@@ -69,6 +69,12 @@ describe('getPostLoginRedirect', () => {
     expect(getPostLoginRedirect(params)).toBe('/c/new');
   });
 
+  it('preserves the Lihe import path and selected API key', () => {
+    const target = '/connect/lihe?api_key_id=90';
+    const params = new URLSearchParams({ redirect_to: target });
+    expect(getPostLoginRedirect(params)).toBe(target);
+  });
+
   it('falls back to sessionStorage when no URL param', () => {
     sessionStorage.setItem(SESSION_KEY, '/c/abc123');
     const params = new URLSearchParams();
@@ -165,6 +171,11 @@ describe('persistRedirectToSession', () => {
   it('stores a valid relative path', () => {
     persistRedirectToSession('/c/new?q=hello');
     expect(sessionStorage.getItem(SESSION_KEY)).toBe('/c/new?q=hello');
+  });
+
+  it('stores the Lihe import path with its API key selection', () => {
+    persistRedirectToSession('/connect/lihe?api_key_id=90');
+    expect(sessionStorage.getItem(SESSION_KEY)).toBe('/connect/lihe?api_key_id=90');
   });
 
   it('rejects an absolute URL', () => {

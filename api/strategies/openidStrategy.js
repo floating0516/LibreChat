@@ -9,7 +9,6 @@ const { CacheKeys, ErrorTypes, SystemRoles } = require('librechat-data-provider'
 const {
   isEnabled,
   logHeaders,
-  safeStringify,
   findOpenIDUser,
   getOpenIdEmail,
   getOpenIdIssuer,
@@ -23,10 +22,25 @@ const {
   getOpenIdRoleSyncOptions,
   getOpenIdRolesForOpenIdSync,
   getLibreChatRolesForOpenIdSync,
+  resolveOpenIDTokenEndpointAuthMethod,
+  sanitizeOpenIdRequestBodyForLogging,
+  sanitizeOpenIdUrlForLogging,
+  OpenIdLinkError,
+  OPENID_LINK_CALLBACK_PATH,
+  completeOpenIdAccountLink,
+  isOpenIdAccountLinkingEnabled,
+  resolveOpenIdLinkIdentity,
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
 const { resizeAvatar } = require('~/server/services/Files/images/avatar');
-const { findUser, createUser, updateUser, findRolesByNames } = require('~/models');
+const {
+  findUser,
+  createUser,
+  updateUser,
+  findRolesByNames,
+  linkOpenIdIdentity,
+  isOpenIdIdentityTombstoned,
+} = require('~/models');
 const { getAppConfig } = require('~/server/services/Config');
 const getLogStores = require('~/cache/getLogStores');
 
@@ -41,20 +55,13 @@ const getLogStores = require('~/cache/getLogStores');
  */
 async function customFetch(url, options) {
   const urlStr = url.toString();
-  logger.debug(`[openidStrategy] Request to: ${urlStr}`);
+  logger.debug(`[openidStrategy] Request to: ${sanitizeOpenIdUrlForLogging(urlStr)}`);
   const debugOpenId = isEnabled(process.env.DEBUG_OPENID_REQUESTS);
   if (debugOpenId) {
     logger.debug(`[openidStrategy] Request method: ${options.method || 'GET'}`);
     logger.debug(`[openidStrategy] Request headers: ${logHeaders(options.headers)}`);
     if (options.body) {
-      let bodyForLogging = '';
-      if (options.body instanceof URLSearchParams) {
-        bodyForLogging = options.body.toString();
-      } else if (typeof options.body === 'string') {
-        bodyForLogging = options.body;
-      } else {
-        bodyForLogging = safeStringify(options.body);
-      }
+      const bodyForLogging = sanitizeOpenIdRequestBodyForLogging(options.body);
       logger.debug(`[openidStrategy] Request body: ${bodyForLogging}`);
     }
   }
@@ -149,7 +156,7 @@ class CustomOpenIDStrategy extends OpenIDStrategy {
       const crypto = require('crypto');
       const nonce = crypto.randomBytes(16).toString('hex');
       params.set('nonce', nonce);
-      logger.debug('[openidStrategy] Generated nonce for federated provider:', nonce);
+      logger.debug('[openidStrategy] Generated nonce for federated provider');
     }
 
     return params;
@@ -577,7 +584,17 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
   }
 
   const email = getOpenIdEmail(userinfo);
+  const emailVerified = userinfo.email_verified === true;
   const openidIssuer = getOpenIdIssuer(claims, openidConfig);
+  const openidId = claims.sub || userinfo.sub;
+
+  if (typeof openidId !== 'string' || !openidId || !openidIssuer) {
+    throw new Error(ErrorTypes.AUTH_FAILED);
+  }
+  if (await isOpenIdIdentityTombstoned({ openidId, openidIssuer })) {
+    logger.warn('[OpenID Strategy] Authentication blocked for a retired identity');
+    throw new Error(ErrorTypes.AUTH_FAILED);
+  }
 
   const baseConfig = await getAppConfig({ baseOnly: true });
   if (!isEmailDomainAllowed(email, baseConfig?.registration?.allowedDomains)) {
@@ -590,7 +607,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
   const result = await findOpenIDUser({
     findUser,
     email: email,
-    openidId: claims.sub || userinfo.sub,
+    openidId,
     openidIssuer,
     idOnTheSource: claims.oid || userinfo.oid,
     strategyName: 'openidStrategy',
@@ -683,13 +700,18 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     throw new Error('User does not exist');
   }
 
+  if (!user && !isEnabled(process.env.ALLOW_SOCIAL_REGISTRATION)) {
+    logger.warn('[openidStrategy] Registration blocked because social registration is disabled');
+    throw new Error(ErrorTypes.AUTH_FAILED);
+  }
+
   if (!user) {
     user = {
       provider: 'openid',
-      openidId: userinfo.sub,
+      openidId,
       username,
       email: email || '',
-      emailVerified: userinfo.email_verified || false,
+      emailVerified,
       name: fullName,
       idOnTheSource: userinfo.oid,
       openidIssuer,
@@ -699,7 +721,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     user = await createUser(user, balanceConfig, true, true);
   } else {
     user.provider = 'openid';
-    user.openidId = userinfo.sub;
+    user.openidId = openidId;
     if (openidIssuer) {
       user.openidIssuer = openidIssuer;
     }
@@ -708,7 +730,7 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
     user.idOnTheSource = userinfo.oid;
     if (email && email !== user.email) {
       user.email = email;
-      user.emailVerified = userinfo.email_verified || false;
+      user.emailVerified = emailVerified;
     }
   }
 
@@ -869,6 +891,28 @@ function createOpenIDCallback(existingUsersOnly) {
   };
 }
 
+function createOpenIDLinkCallback(config) {
+  return async (req, tokenset, done) => {
+    try {
+      const identity = resolveOpenIdLinkIdentity(tokenset, config);
+      const result = await completeOpenIdAccountLink({
+        req,
+        ...identity,
+        linkOpenIdIdentity,
+      });
+      req.openIdLinkReturnTo = result.returnTo;
+      done(null, result.user);
+    } catch (err) {
+      if (err instanceof OpenIdLinkError) {
+        logger.warn('[openidStrategy] Account linking was rejected', { code: err.code });
+        return done(null, false, { message: err.code });
+      }
+      logger.error('[openidStrategy] Account linking failed', err);
+      done(err);
+    }
+  };
+}
+
 /**
  * Sets up the OpenID strategy specifically for admin authentication.
  * @param {Configuration} openidConfig
@@ -896,6 +940,27 @@ const setupOpenIdAdmin = (openidConfig) => {
   }
 };
 
+const setupOpenIdLink = (config, usePKCE) => {
+  if (!isOpenIdAccountLinkingEnabled()) {
+    return;
+  }
+
+  const openidLink = new CustomOpenIDStrategy(
+    {
+      name: 'openidLink',
+      sessionKey: 'openidLink',
+      config,
+      scope: process.env.OPENID_SCOPE,
+      usePKCE,
+      passReqToCallback: true,
+      clockTolerance: process.env.OPENID_CLOCK_TOLERANCE || 300,
+      callbackURL: process.env.DOMAIN_SERVER + OPENID_LINK_CALLBACK_PATH,
+    },
+    createOpenIDLinkCallback(config),
+  );
+  passport.use('openidLink', openidLink);
+};
+
 /**
  * Sets up the OpenID strategy for authentication.
  * This function configures the OpenID client, handles proxy settings,
@@ -919,14 +984,18 @@ async function setupOpenId() {
     };
 
     const clientSecret = process.env.OPENID_CLIENT_SECRET?.trim();
+    const tokenEndpointAuthMethod = resolveOpenIDTokenEndpointAuthMethod({
+      configuredMethod: process.env.OPENID_TOKEN_ENDPOINT_AUTH_METHOD,
+      clientSecret,
+      usePKCE,
+      generateNonce: shouldGenerateNonce,
+    });
 
     if (clientSecret) {
       clientMetadata.client_secret = clientSecret;
-      if (shouldGenerateNonce) {
-        clientMetadata.token_endpoint_auth_method = 'client_secret_post';
-      }
-    } else if (usePKCE) {
-      clientMetadata.token_endpoint_auth_method = 'none';
+    }
+    if (tokenEndpointAuthMethod) {
+      clientMetadata.token_endpoint_auth_method = tokenEndpointAuthMethod;
     }
 
     /** @type {Configuration} */
@@ -958,6 +1027,7 @@ async function setupOpenId() {
       createOpenIDCallback(),
     );
     passport.use('openid', openidLogin);
+    setupOpenIdLink(openidConfig, usePKCE);
     setupOpenIdAdmin(openidConfig);
     return openidConfig;
   } catch (err) {

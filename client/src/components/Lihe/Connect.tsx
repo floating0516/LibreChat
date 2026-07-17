@@ -4,7 +4,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { CheckCircle2, CircleAlert, Link2, LoaderCircle } from 'lucide-react';
 import { parseLiheApiKeyId, QueryKeys } from 'librechat-data-provider';
-import { useLiheConnectionStatusQuery, useStartLiheConnectionMutation } from '~/data-provider';
+import {
+  useLiheConnectionStatusQuery,
+  useStartLiheConnectionMutation,
+  useStartOpenIdLinkMutation,
+} from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
 type ConnectPhase = 'loading' | 'confirm' | 'success' | 'error' | 'unavailable';
@@ -16,6 +20,7 @@ export default function LiheConnect() {
   const [searchParams] = useSearchParams();
   const status = useLiheConnectionStatusQuery();
   const startConnection = useStartLiheConnectionMutation();
+  const startAccountLink = useStartOpenIdLinkMutation();
   const started = useRef(false);
   const [confirmed, setConfirmed] = useState(false);
   const [attemptFailed, setAttemptFailed] = useState(false);
@@ -54,6 +59,24 @@ export default function LiheConnect() {
     [apiKeyId, startConnection],
   );
 
+  const beginAccountLink = useCallback(() => {
+    if (started.current) {
+      return;
+    }
+    started.current = true;
+    setPhase('loading');
+    startAccountLink.mutate(
+      { returnTo: `${window.location.pathname}${window.location.search}` },
+      {
+        onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
+        onError: () => {
+          setAttemptFailed(true);
+          setPhase('error');
+        },
+      },
+    );
+  }, [startAccountLink]);
+
   useEffect(() => {
     if (result === 'connected') {
       setPhase('success');
@@ -84,6 +107,10 @@ export default function LiheConnect() {
       setPhase('error');
       return;
     }
+    if (status.data.requiresAccountLink) {
+      beginAccountLink();
+      return;
+    }
     if (status.data.connected && !reconnect) {
       navigate('/c/new', { replace: true });
       return;
@@ -106,6 +133,7 @@ export default function LiheConnect() {
     apiKeyIdInvalid,
     apiKeyIdMissing,
     begin,
+    beginAccountLink,
     confirmed,
     navigate,
     queryClient,
@@ -118,6 +146,10 @@ export default function LiheConnect() {
   const retry = () => {
     started.current = false;
     setAttemptFailed(false);
+    if (status.data?.requiresAccountLink) {
+      beginAccountLink();
+      return;
+    }
     navigate('/connect/lihe?reconnect=1', { replace: true });
   };
 
@@ -128,7 +160,9 @@ export default function LiheConnect() {
           <>
             <LoaderCircle className="h-9 w-9 animate-spin text-text-secondary" aria-hidden="true" />
             <h1 className="text-xl font-semibold text-text-primary">
-              {localize('com_ui_lihe_connecting')}
+              {status.data?.requiresAccountLink
+                ? localize('com_ui_lihe_account_linking')
+                : localize('com_ui_lihe_connecting')}
             </h1>
           </>
         )}

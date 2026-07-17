@@ -92,6 +92,9 @@ afterEach(() => {
   delete process.env.OPENID_CLIENT_SECRET;
   delete process.env.OPENID_ISSUER;
   delete process.env.OPENID_SESSION_SECRET;
+  delete process.env.OPENID_SCOPE;
+  delete process.env.OPENID_USE_PKCE;
+  delete process.env.OPENID_ACCOUNT_LINKING_ENABLED;
   delete process.env.GITHUB_CLIENT_ID;
   delete process.env.GITHUB_CLIENT_SECRET;
   delete process.env.DISCORD_CLIENT_ID;
@@ -181,6 +184,7 @@ describe('GET /api/config', () => {
       expect(response.body).not.toHaveProperty('publicSharedLinksEnabled');
       expect(response.body).not.toHaveProperty('analyticsGtmId');
       expect(response.body).not.toHaveProperty('openidReuseTokens');
+      expect(response.body).not.toHaveProperty('openidAccountLinkingEnabled');
       expect(response.body).not.toHaveProperty('allowAccountDeletion');
       expect(response.body).not.toHaveProperty('customFooter');
     });
@@ -396,8 +400,26 @@ describe('GET /api/config', () => {
       expect(response.body).toHaveProperty('publicSharedLinksEnabled');
       expect(response.body).toHaveProperty('showBirthdayIcon');
       expect(response.body).toHaveProperty('openidReuseTokens');
+      expect(response.body).toHaveProperty('openidAccountLinkingEnabled', false);
       expect(response.body.analyticsGtmId).toBe('GTM-XYZ');
       expect(response.body.customFooter).toBe('authenticated footer text');
+    });
+
+    it('advertises account linking only to authenticated users when fully configured', async () => {
+      process.env.OPENID_ACCOUNT_LINKING_ENABLED = 'true';
+      process.env.ALLOW_SOCIAL_LOGIN = 'true';
+      process.env.OPENID_CLIENT_ID = 'lihe-chat-login';
+      process.env.OPENID_CLIENT_SECRET = 'client-secret';
+      process.env.OPENID_ISSUER = 'https://api.lihe.chat';
+      process.env.OPENID_SCOPE = 'openid profile email';
+      process.env.OPENID_SESSION_SECRET = 'session-secret';
+      mockGetAppConfig.mockResolvedValue(baseAppConfig);
+
+      const authenticated = await request(createApp(mockUser)).get('/api/config');
+      const anonymous = await request(createApp(null)).get('/api/config');
+
+      expect(authenticated.body.openidAccountLinkingEnabled).toBe(true);
+      expect(anonymous.body).not.toHaveProperty('openidAccountLinkingEnabled');
     });
 
     it('should advertise CloudFront cookie refresh when signed-cookie mode is active', async () => {

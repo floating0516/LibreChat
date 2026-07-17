@@ -26,6 +26,7 @@ export type LiheConfig = {
   stateSecret: string;
   scope: string;
   providers: TLiheProvider[];
+  requireOpenIdSubject: boolean;
   cookiePath: string;
   resultPath: string;
 };
@@ -121,6 +122,7 @@ export function getLiheConfig(): LiheConfig | null {
     stateSecret,
     scope: 'models:read chat:write',
     providers: parseProviders(process.env.LIHE_CONNECT_PROVIDERS),
+    requireOpenIdSubject: isEnabled(process.env.LIHE_CONNECT_REQUIRE_OPENID_SUBJECT),
     cookiePath: `${basePath}${LIHE_COOKIE_ROUTE}`,
     resultPath: `${basePath}${LIHE_RESULT_ROUTE}`,
   };

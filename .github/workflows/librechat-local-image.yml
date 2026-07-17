@@ -150,6 +150,7 @@ jobs:
               if (provider.initialModelsConfig.openAI.length !== 0) process.exit(1);
               if (provider.initialModelsConfig.anthropic.length !== 0) process.exit(1);
               if (typeof provider.liheTokenResponseSchema?.safeParse !== "function") process.exit(1);
+              if (typeof provider.MutationKeys?.openIdLinkStart !== "string") process.exit(1);
               if (!provider.liheStartRequestSchema.safeParse({ apiKeyId: "90" }).success) process.exit(1);
               if (provider.liheStartRequestSchema.safeParse({ apiKeyId: "01" }).success) process.exit(1);
             '
@@ -161,6 +162,25 @@ jobs:
               const api = require("/app/packages/api/dist/index.cjs");
               if (typeof api.createLiheHandlers !== "function") process.exit(1);
               if (typeof api.verifyLiheState !== "function") process.exit(1);
+              if (typeof api.createOpenIdLinkStartHandler !== "function") process.exit(1);
+              if (typeof api.resolveOpenIDTokenEndpointAuthMethod !== "function") process.exit(1);
+              if (api.resolveOpenIDTokenEndpointAuthMethod({ configuredMethod: "client_secret_basic", clientSecret: "synthetic", usePKCE: true, generateNonce: true }) !== "client_secret_basic") process.exit(1);
+            '
+
+          docker run --rm --network=none \
+            --entrypoint node \
+            "$image_ref" \
+            -e '
+              const mongoose = require("mongoose");
+              const schemas = require("/app/packages/data-schemas/dist/index.cjs");
+              if (typeof schemas.createModels !== "function") process.exit(1);
+              if (typeof schemas.createMethods !== "function") process.exit(1);
+              const models = schemas.createModels(mongoose);
+              const methods = schemas.createMethods(mongoose);
+              if (!models.OpenIdIdentityTombstone) process.exit(1);
+              for (const name of ["isOpenIdIdentityTombstoned", "createOpenIdIdentityTombstone", "linkOpenIdIdentity"]) {
+                if (typeof methods[name] !== "function") process.exit(1);
+              }
             '
 
           docker run --rm --network=none \
@@ -171,11 +191,13 @@ jobs:
               test -f /app/client/dist/index.html
               test -f /app/packages/data-provider/dist/index.mjs
               test -f /app/packages/api/dist/index.cjs
+              test -f /app/packages/data-schemas/dist/index.cjs
               test -f /app/api/server/routes/lihe.js
               test ! -e /tmp/librechat-build
               test ! -e /tmp/librechat-patches
               test ! -L /app/client/node_modules/vite
               test ! -L /app/packages/data-provider/node_modules/tsdown
+              test ! -L /app/packages/data-schemas/node_modules/tsdown
               test ! -L /app/packages/api/node_modules/tsdown
             '
 

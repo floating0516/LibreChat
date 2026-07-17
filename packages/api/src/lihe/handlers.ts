@@ -25,6 +25,8 @@ type LiheFlowManager = Pick<FlowStateManager<null>, 'initFlow' | 'getFlowState' 
 type LiheUser = {
   id?: string;
   tenantId?: string;
+  openidId?: string;
+  openidIssuer?: string;
 };
 
 interface LiheAuthenticatedRequest extends Request {
@@ -36,10 +38,12 @@ type LiheFlowMetadata = {
   userId: string;
   tenantId?: string;
   codeVerifier: string;
+  expectedAccountId?: string;
 };
 
 type CallbackError =
   | 'access_denied'
+  | 'account_mismatch'
   | 'callback_failed'
   | 'feature_unavailable'
   | 'flow_expired'
@@ -69,7 +73,7 @@ function queryString(value: unknown): string | null {
 }
 
 function parseFlowMetadata(metadata: { [key: string]: unknown }): LiheFlowMetadata | null {
-  const { userId, tenantId, codeVerifier } = metadata;
+  const { userId, tenantId, codeVerifier, expectedAccountId } = metadata;
   if (typeof userId !== 'string' || !userId || typeof codeVerifier !== 'string') {
     return null;
   }
@@ -79,10 +83,17 @@ function parseFlowMetadata(metadata: { [key: string]: unknown }): LiheFlowMetada
   if (tenantId != null && typeof tenantId !== 'string') {
     return null;
   }
+  if (
+    expectedAccountId != null &&
+    (typeof expectedAccountId !== 'string' || !expectedAccountId || expectedAccountId.length > 256)
+  ) {
+    return null;
+  }
   return {
     userId,
     tenantId: typeof tenantId === 'string' ? tenantId : undefined,
     codeVerifier,
+    expectedAccountId: typeof expectedAccountId === 'string' ? expectedAccountId : undefined,
   };
 }
 
@@ -115,6 +126,7 @@ function unavailableStatus(): TLiheConnectionStatus {
     needsReconnect: false,
     hasExistingKeys: false,
     providers: [],
+    requiresAccountLink: false,
   };
 }
 
@@ -145,14 +157,18 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         res.status(401).json({ error: 'unauthorized' });
         return;
       }
+      const linkedAccountId =
+        req.user?.openidId && req.user?.openidIssuer ? req.user.openidId : undefined;
       const connectionStatus = await getLiheConnectionStatus({
         deps,
         userId,
         configuredProviders: config.providers,
+        expectedAccountId: config.requireOpenIdSubject ? linkedAccountId : undefined,
       });
       res.status(200).json({
         enabled: true,
         selectionUrl: config.selectionUrl.href,
+        requiresAccountLink: config.requireOpenIdSubject && !linkedAccountId,
         ...connectionStatus,
       });
     } catch (error) {
@@ -178,6 +194,13 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         res.status(401).json({ error: 'unauthorized' });
         return;
       }
+      const linkedAccountId =
+        req.user?.openidId && req.user?.openidIssuer ? req.user.openidId : undefined;
+      if (config.requireOpenIdSubject && !linkedAccountId) {
+        res.status(409).json({ error: 'account_link_required' });
+        return;
+      }
+      const expectedAccountId = config.requireOpenIdSubject ? linkedAccountId : undefined;
 
       const parsedRequest = liheStartRequestSchema.safeParse(req.body);
       if (!parsedRequest.success) {
@@ -189,6 +212,7 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         deps,
         userId,
         configuredProviders: config.providers,
+        expectedAccountId,
       });
       const { apiKeyId, replaceExisting = false } = parsedRequest.data;
       if (connectionStatus.connected && !replaceExisting) {
@@ -206,6 +230,7 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         userId,
         tenantId: req.user?.tenantId,
         codeVerifier: pkce.verifier,
+        expectedAccountId,
       });
       setOAuthCsrfCookie(res, pkce.flowId, config.cookiePath);
 
@@ -282,6 +307,9 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         fetcher: deps.fetcher,
       });
       issuedToken = tokenResponse.access_token;
+      if (metadata.expectedAccountId && tokenResponse.account_id !== metadata.expectedAccountId) {
+        throw new LiheCallbackError('account_mismatch');
+      }
       for (const provider of tokenResponse.providers) {
         if (!config.providers.includes(provider)) {
           throw new LiheCallbackError('unsupported_provider');

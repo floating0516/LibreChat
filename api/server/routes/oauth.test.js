@@ -2,6 +2,7 @@ const express = require('express');
 const request = require('supertest');
 
 const originalDomainClient = process.env.DOMAIN_CLIENT;
+const originalAllowSocialLogin = process.env.ALLOW_SOCIAL_LOGIN;
 process.env.DOMAIN_CLIENT = 'http://client.test';
 
 const mockLogger = {
@@ -13,9 +14,9 @@ const mockLogger = {
 
 const mockOAuthHandler = jest.fn((_req, res) => res.status(204).end());
 const mockOpenIDCallbackMiddleware = jest.fn((_req, _res, next) => next());
-let mockOpenIDCallbackAuthenticatorOptions;
+let mockOpenIDCallbackAuthenticatorOptions = {};
 const mockCreateOpenIDCallbackAuthenticator = jest.fn((options) => {
-  mockOpenIDCallbackAuthenticatorOptions = options;
+  mockOpenIDCallbackAuthenticatorOptions[options.strategy ?? 'openid'] = options;
   return mockOpenIDCallbackMiddleware;
 });
 const mockBuildOAuthFailureLog = jest.fn(({ provider, req, err, info, defaultMessage }) => ({
@@ -49,6 +50,9 @@ const mockRedirectToAuthFailure = jest.fn((res, { clientDomain, authFailedError 
   res.redirect(`${clientDomain}/login?redirect=false&error=${authFailedError}`),
 );
 const mockPassportAuthenticate = jest.fn(() => (_req, _res, next) => next());
+const mockHasOpenIdAccountLinkIntent = jest.fn(() => false);
+const mockIsOpenIdAccountLinkingEnabled = jest.fn(() => false);
+const mockIsEnabled = jest.fn((value) => value === 'true');
 
 jest.mock('passport', () => ({
   authenticate: (...args) => mockPassportAuthenticate(...args),
@@ -74,6 +78,10 @@ jest.mock('@librechat/api', () => ({
   createOpenIDCallbackAuthenticator: (...args) => mockCreateOpenIDCallbackAuthenticator(...args),
   createSetBalanceConfig: jest.fn(() => (_req, _res, next) => next()),
   getOAuthFailureMessage: (...args) => mockGetOAuthFailureMessage(...args),
+  hasOpenIdAccountLinkIntent: (...args) => mockHasOpenIdAccountLinkIntent(...args),
+  isEnabled: (...args) => mockIsEnabled(...args),
+  isOpenIdAccountLinkingEnabled: (...args) => mockIsOpenIdAccountLinkingEnabled(...args),
+  OPENID_LINK_RESULT_PATH: '/connect/lihe-account',
   redirectToAuthFailure: (...args) => mockRedirectToAuthFailure(...args),
 }));
 
@@ -97,6 +105,11 @@ jest.mock('~/server/services/Config', () => ({
 }));
 
 afterAll(() => {
+  if (originalAllowSocialLogin === undefined) {
+    delete process.env.ALLOW_SOCIAL_LOGIN;
+  } else {
+    process.env.ALLOW_SOCIAL_LOGIN = originalAllowSocialLogin;
+  }
   if (originalDomainClient === undefined) {
     delete process.env.DOMAIN_CLIENT;
     return;
@@ -136,7 +149,11 @@ describe('OAuth route failure logging', () => {
     mockGetOAuthFailureMessage.mockClear();
     mockRedirectToAuthFailure.mockClear();
     mockPassportAuthenticate.mockClear();
-    mockOpenIDCallbackAuthenticatorOptions = undefined;
+    mockHasOpenIdAccountLinkIntent.mockClear();
+    mockIsOpenIdAccountLinkingEnabled.mockClear();
+    mockIsEnabled.mockClear();
+    mockOpenIDCallbackAuthenticatorOptions = {};
+    process.env.ALLOW_SOCIAL_LOGIN = 'true';
     mockPassportAuthenticate.mockImplementation(() => (_req, _res, next) => next());
     mockOpenIDCallbackMiddleware.mockImplementation((_req, _res, next) => next());
   });
@@ -148,7 +165,7 @@ describe('OAuth route failure logging', () => {
       .get('/oauth/openid/callback?code=secret-code&state=secret-state')
       .expect(204);
 
-    expect(mockOpenIDCallbackAuthenticatorOptions).toEqual({
+    expect(mockOpenIDCallbackAuthenticatorOptions.openid).toEqual({
       passport: expect.objectContaining({ authenticate: expect.any(Function) }),
       logger: mockLogger,
       clientDomain: 'http://client.test',
@@ -160,6 +177,27 @@ describe('OAuth route failure logging', () => {
       expect.any(Function),
     );
     expect(mockOAuthHandler).toHaveBeenCalled();
+  });
+
+  it('enforces the social-login switch on both OpenID entry points', async () => {
+    process.env.ALLOW_SOCIAL_LOGIN = 'false';
+    const app = createApp();
+
+    const start = await request(app).get('/oauth/openid').expect(302);
+    const callback = await request(app)
+      .get('/oauth/openid/callback?code=secret-code&state=secret-state')
+      .expect(302);
+
+    expect(start.headers.location).toBe(
+      'http://client.test/login?redirect=false&error=auth_failed',
+    );
+    expect(callback.headers.location).toBe(
+      'http://client.test/login?redirect=false&error=auth_failed',
+    );
+    expect(callback.headers['cache-control']).toBe('no-store');
+    expect(callback.headers['referrer-policy']).toBe('no-referrer');
+    expect(mockPassportAuthenticate).not.toHaveBeenCalledWith('openid', expect.anything());
+    expect(mockOpenIDCallbackMiddleware).not.toHaveBeenCalled();
   });
 
   it('logs structured fallback errors without using Unknown OAuth error', async () => {

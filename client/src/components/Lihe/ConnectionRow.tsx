@@ -13,7 +13,11 @@ import {
   useToastContext,
 } from '@librechat/client';
 import { CheckCircle2, Link2, RefreshCw, Unplug } from 'lucide-react';
-import { useLiheConnectionStatusQuery, useDisconnectLiheConnectionMutation } from '~/data-provider';
+import {
+  useLiheConnectionStatusQuery,
+  useDisconnectLiheConnectionMutation,
+  useStartOpenIdLinkMutation,
+} from '~/data-provider';
 import { NotificationSeverity } from '~/common';
 import { useLocalize } from '~/hooks';
 
@@ -23,14 +27,32 @@ export default function LiheConnectionRow() {
   const { showToast } = useToastContext();
   const status = useLiheConnectionStatusQuery();
   const disconnect = useDisconnectLiheConnectionMutation();
+  const startAccountLink = useStartOpenIdLinkMutation();
 
   if (!status.data?.enabled) {
     return null;
   }
 
   const isConnected = status.data.connected;
+  const requiresAccountLink = status.data.requiresAccountLink === true;
   const hasConnection = isConnected || status.data.needsReconnect;
-  const connect = () => navigate(`/connect/lihe${hasConnection ? '?reconnect=1' : ''}`);
+  const connect = () => {
+    if (requiresAccountLink) {
+      startAccountLink.mutate(
+        { returnTo: '/connect/lihe' },
+        {
+          onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
+          onError: () =>
+            showToast({
+              message: localize('com_ui_lihe_account_link_failed'),
+              status: NotificationSeverity.ERROR,
+            }),
+        },
+      );
+      return;
+    }
+    navigate(`/connect/lihe${hasConnection ? '?reconnect=1' : ''}`);
+  };
   const handleDisconnect = () => {
     disconnect.mutate(undefined, {
       onSuccess: () =>
@@ -63,20 +85,26 @@ export default function LiheConnectionRow() {
           <div className="truncate text-xs text-text-secondary">
             {isConnected
               ? status.data.accountLabel || localize('com_ui_lihe_status_connected')
-              : status.data.needsReconnect
-                ? localize('com_ui_lihe_status_reconnect')
-                : localize('com_ui_lihe_status_disconnected')}
+              : requiresAccountLink
+                ? localize('com_ui_lihe_account_link_required')
+                : status.data.needsReconnect
+                  ? localize('com_ui_lihe_status_reconnect')
+                  : localize('com_ui_lihe_status_disconnected')}
           </div>
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        <Button variant="outline" onClick={connect}>
+        <Button variant="outline" onClick={connect} disabled={startAccountLink.isLoading}>
           {hasConnection ? (
             <RefreshCw className="mr-2 h-4 w-4" aria-hidden="true" />
           ) : (
             <Link2 className="mr-2 h-4 w-4" aria-hidden="true" />
           )}
-          {hasConnection ? localize('com_ui_lihe_reconnect') : localize('com_ui_lihe_connect')}
+          {requiresAccountLink
+            ? localize('com_ui_lihe_account_link')
+            : hasConnection
+              ? localize('com_ui_lihe_reconnect')
+              : localize('com_ui_lihe_connect')}
         </Button>
         {hasConnection && (
           <AlertDialog>

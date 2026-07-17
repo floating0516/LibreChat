@@ -131,6 +131,12 @@ export function disconnectLiheConnection(): Promise<l.TLiheDisconnectResponse> {
   return request.post(endpoints.liheConnectionDisconnect());
 }
 
+export function startOpenIdLink(
+  payload: t.TOpenIdLinkStartRequest,
+): Promise<t.TOpenIdLinkStartResponse> {
+  return request.post(endpoints.openIdLinkStart(), payload);
+}
+
 export function getAgentApiKeys(): Promise<t.TAgentApiKeyListResponse> {
   return request.get(endpoints.apiKeys());
 }
@@ -285,18 +291,16 @@ export const getContextProjection = (
 };
 
 export const getModels = async (): Promise<t.TModelsConfig> => {
-  const response = await request.get<
-    Record<string, string[] | TModelCapabilitiesConfig>
-  >(endpoints.models());
+  const response = await request.get<Record<string, string[] | TModelCapabilitiesConfig>>(
+    endpoints.models(),
+  );
   const modelsConfig: t.TModelsConfig = {};
 
   for (const [endpoint, value] of Object.entries(response)) {
     if (endpoint === modelCapabilitiesResponseKey || !Array.isArray(value)) {
       continue;
     }
-    modelsConfig[endpoint] = value.filter(
-      (model): model is string => typeof model === 'string',
-    );
+    modelsConfig[endpoint] = value.filter((model): model is string => typeof model === 'string');
   }
 
   const capabilitiesResult = modelCapabilitiesConfigSchema.safeParse(

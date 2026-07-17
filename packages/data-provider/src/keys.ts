@@ -132,4 +132,5 @@ export enum MutationKeys {
   convoPin = 'convoPin',
   liheStart = 'liheStart',
   liheDisconnect = 'liheDisconnect',
+  openIdLinkStart = 'openIdLinkStart',
 }

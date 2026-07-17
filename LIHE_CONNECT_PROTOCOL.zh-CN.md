@@ -99,7 +99,7 @@ code_verifier=<pkce-verifier>
 - `access_token` 是独立的对话站 Token，长期有效，直到撤销。
 - `expires_in` 必须为 `null` 或省略；返回数字会被对话站拒绝。
 - `providers` 至少一项，只能使用固定大小写的允许值。
-- `account_id` 和 `account_label` 可省略，不能包含密钥或敏感身份信息。
+- 启用统一账号模式后，`account_id` 必须返回，且必须精确等于该用户 OIDC ID Token 的稳定 `sub`；`account_label` 可省略。两者都不能包含密钥或敏感身份信息。
 - API 数据库只保存 Token 的安全哈希，明文只在本响应返回一次。
 - Token 只能查询模型和发起聊天，不能管理账户、余额、支付或其他 Key。
 
@@ -188,3 +188,30 @@ token_type_hint=access_token
 6. OpenAI 与 Anthropic 均能用同一专用 Token 完成一次流式对话；不支持的 Provider 返回 `403`。
 7. URL、浏览器存储、Cloudflare 日志和两端应用日志中均不存在长期 Token。
 8. 缺失、重复、非规范或超出 int64 范围的 `api_key_id` 被对话站拒绝；其他用户、已删除、已禁用或授权后失效的 Key 被 API 站拒绝，且不能在兑换阶段换绑。
+9. 已绑定 OIDC 用户兑换到缺失或不匹配的 `account_id` 时，对话站不保存 Token，并立即调用撤销接口。
+
+## 9. 统一账号 OIDC 契约
+
+统一账号登录与本文前述 API Key OAuth 是两套独立协议和数据表，不得复用 `lihe_` 长期 Token。两边数据库保持独立，只使用 `(issuer, sub)` 建立稳定身份关联。
+
+| 项目                | 生产值                                         |
+| ------------------- | ---------------------------------------------- |
+| Issuer              | `https://api.lihe.chat`                        |
+| Client ID           | `lihe-chat-login`                              |
+| 普通登录回调        | `https://lihe.chat/oauth/openid/callback`      |
+| 已有账号绑定回调    | `https://lihe.chat/oauth/openid/link/callback` |
+| Scope               | `openid profile email`                         |
+| Flow                | Authorization Code + PKCE S256 + nonce         |
+| Token Endpoint Auth | `client_secret_basic`                          |
+
+Discovery 至少声明 `response_types_supported=["code"]`、`grant_types_supported=["authorization_code"]`、`subject_types_supported=["public"]`、`id_token_signing_alg_values_supported=["RS256"]`、`code_challenge_methods_supported=["S256"]` 和 `token_endpoint_auth_methods_supported=["client_secret_basic"]`。JWKS 必须提供可轮换的 RSA 公钥和稳定 `kid`。
+
+`/oidc/token` 成功响应必须包含 `access_token`、`token_type=Bearer`、`expires_in`、`id_token` 和 `scope`。OIDC Access Token 是只允许访问 `/oidc/userinfo` 的不透明短期 Token，建议 5 分钟；第一阶段不签发 Refresh Token。`id_token` 至少包含 `iss`、稳定 `sub`、`aud`、`iat`、`exp`、`nonce`，`email_verified` 必须反映真实验证状态。
+
+已有 LibreChat 本地用户只能从已登录的账号设置页发起绑定。对话站在服务端 Session 中保存 10 分钟的一次性绑定意图，使用独立 Passport 策略和回调；绑定时以 MongoDB 条件更新及 `(openidId, openidIssuer, tenantId)` 唯一索引防止抢占，保留原 `_id`、对话和文件。禁止按邮箱静默合并。
+
+用户删除前，对话站先写入只含 issuer、subject 哈希和原用户 ID 的永久 tombstone；写入失败则停止删除。普通登录和已有账号绑定都会拒绝 tombstone 身份，防止删除后相同 `sub` 被另一个 MongoDB 用户复用。
+
+第一阶段退出仅结束 LibreChat 本地会话，不调用 Provider Logout；LibreChat Refresh Session 最长 24 小时。API 端禁用账号后必须立即阻止新的 OIDC 授权和 Lihe Token 使用。
+
+生产切换必须同时满足：Discovery/JWKS 可用、两个回调地址精确登记、测试 Client Secret 通过 `client_secret_basic` 联调、历史用户绑定验收通过。随后才可启用 `ALLOW_SOCIAL_LOGIN=true`、`ALLOW_SOCIAL_REGISTRATION=true`、`OPENID_ACCOUNT_LINKING_ENABLED=true` 和 `LIHE_CONNECT_REQUIRE_OPENID_SUBJECT=true`；公开邮箱注册在迁移窗口结束后改为 `ALLOW_REGISTRATION=false`，OIDC 新用户注册仍由 `ALLOW_SOCIAL_REGISTRATION=true` 单独控制。

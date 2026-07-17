@@ -43,6 +43,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
   creds_iv="$(openssl rand -hex 16)"
   mongo_password="$(openssl rand -hex 24)"
   admin_panel_session_secret="$(openssl rand -hex 32)"
+  openid_session_secret="$(openssl rand -hex 32)"
 
   sed \
     -e "s|__LIBRECHAT_BASE_IMAGE__|$LIBRECHAT_BASE_IMAGE|" \
@@ -53,6 +54,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
     -e "s/__CREDS_IV__/$creds_iv/" \
     -e "s/__MONGO_ROOT_PASSWORD__/$mongo_password/" \
     -e "s/__ADMIN_PANEL_SESSION_SECRET__/$admin_panel_session_secret/" \
+    -e "s/__OPENID_SESSION_SECRET__/$openid_session_secret/" \
     "$TEMPLATE_FILE" > "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   printf '%s\n' 'Created .env with fresh local secrets.'
@@ -69,6 +71,9 @@ else
   ensure_env_value ADMIN_PANEL_URL http://localhost:3000
   if ! rg -q '^ADMIN_PANEL_SESSION_SECRET=.' "$ENV_FILE"; then
     ensure_env_value ADMIN_PANEL_SESSION_SECRET "$(openssl rand -hex 32)"
+  fi
+  if ! rg -q '^OPENID_SESSION_SECRET=.' "$ENV_FILE"; then
+    ensure_env_value OPENID_SESSION_SECRET "$(openssl rand -hex 32)"
   fi
   printf '%s\n' 'Keeping the existing .env and its secrets.'
 fi

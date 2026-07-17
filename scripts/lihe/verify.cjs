@@ -17,6 +17,7 @@ const config = {
   stateSecret: 'synthetic-state-secret',
   scope: 'models:read chat:write',
   providers: ['openAI', 'anthropic'],
+  requireOpenIdSubject: false,
   cookiePath: '/api/integrations/lihe',
   resultPath: '/connect/lihe',
 };
@@ -99,12 +100,19 @@ function assertClientBundleContains(expected) {
 }
 
 async function verify() {
-  assertClientBundleContains(['/connect/lihe', '/api/integrations/lihe', 'api_key_id']);
+  assertClientBundleContains([
+    '/connect/lihe',
+    '/connect/lihe-account',
+    '/api/integrations/lihe',
+    '/api/auth/openid/link',
+    'api_key_id',
+  ]);
 
   const provider = await import('/app/packages/data-provider/dist/index.mjs');
   assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '90' }).success, true);
   assert.equal(provider.liheStartRequestSchema.safeParse({}).success, false);
   assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '01' }).success, false);
+  assert.equal(provider.MutationKeys.openIdLinkStart, 'openIdLinkStart');
 
   Object.assign(process.env, {
     LIHE_CONNECT_ENABLED: 'true',

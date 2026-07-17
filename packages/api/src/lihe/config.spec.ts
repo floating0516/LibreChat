@@ -30,10 +30,16 @@ describe('Lihe Connect configuration', () => {
       clientId: 'lihe-chat',
       scope: 'models:read chat:write',
       providers: ['openAI', 'anthropic'],
+      requireOpenIdSubject: false,
     });
     expect(config?.authorizationUrl.href).toBe('https://api.lihe.chat/oauth/authorize');
     expect(config?.callbackUrl.href).toBe('https://lihe.chat/api/integrations/lihe/callback');
     expect(config?.selectionUrl.href).toBe('https://api.lihe.chat/integrations/lihe');
+  });
+
+  it('requires a linked OpenID subject only when explicitly enabled', () => {
+    process.env.LIHE_CONNECT_REQUIRE_OPENID_SUBJECT = 'true';
+    expect(getLiheConfig()?.requireOpenIdSubject).toBe(true);
   });
 
   it('maps malformed and insecure production URLs to a configuration error', () => {

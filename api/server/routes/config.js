@@ -7,6 +7,7 @@ const {
   resolveTitleTiming,
   sanitizeModelSpecs,
   isFileSnapshotEnabled,
+  isOpenIdAccountLinkingEnabled,
 } = require('@librechat/api');
 const { EModelEndpoint, defaultSocialLogins } = require('librechat-data-provider');
 const { logger, getTenantId, SystemCapabilities } = require('@librechat/data-schemas');
@@ -141,6 +142,7 @@ function buildPostLoginPayload() {
     sharedLinksEnabled,
     publicSharedLinksEnabled,
     openidReuseTokens,
+    openidAccountLinkingEnabled: isOpenIdAccountLinkingEnabled(),
     /** Read inline (not module-level) for per-request evaluation and test isolation */
     allowAccountDeletion:
       process.env.ALLOW_ACCOUNT_DELETION === undefined ||

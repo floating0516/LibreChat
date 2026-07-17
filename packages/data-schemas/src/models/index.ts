@@ -31,6 +31,7 @@ import { createAgentModel } from './agent';
 import { createSkillModel } from './skill';
 import { createGroupModel } from './group';
 import { createUserModel } from './user';
+import { createOpenIdIdentityTombstoneModel } from './openid/tombstone';
 import { createRoleModel } from './role';
 import { createFileModel } from './file';
 import { createKeyModel } from './key';
@@ -40,6 +41,7 @@ import { createKeyModel } from './key';
  */
 export function createModels(mongoose: typeof import('mongoose')): {
   User: ReturnType<typeof createUserModel>;
+  OpenIdIdentityTombstone: ReturnType<typeof createOpenIdIdentityTombstoneModel>;
   Token: ReturnType<typeof createTokenModel>;
   Session: ReturnType<typeof createSessionModel>;
   Balance: ReturnType<typeof createBalanceModel>;
@@ -78,6 +80,7 @@ export function createModels(mongoose: typeof import('mongoose')): {
 } {
   return {
     User: createUserModel(mongoose),
+    OpenIdIdentityTombstone: createOpenIdIdentityTombstoneModel(mongoose),
     Token: createTokenModel(mongoose),
     Session: createSessionModel(mongoose),
     Balance: createBalanceModel(mongoose),

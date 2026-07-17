@@ -1,10 +1,10 @@
 # Local runtime derivative for a pinned official LibreChat release.
 # It overlays the local model-discovery and client gating changes, then rebuilds
-# only the affected API, data-provider, and browser bundles.
+# only the affected data-schemas, API, data-provider, and browser bundles.
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.7
+ARG LIBRECHAT_VERSION=v0.8.7.8
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -13,18 +13,35 @@ COPY --chown=node:node scripts/langchain/verify.cjs /tmp/librechat-patches/langc
 COPY --chown=node:node api/server/services/Config/loadDefaultModels.js /app/api/server/services/Config/loadDefaultModels.js
 COPY --chown=node:node api/server/controllers/ModelController.js /app/api/server/controllers/ModelController.js
 COPY --chown=node:node api/server/routes/lihe.js /app/api/server/routes/lihe.js
+COPY --chown=node:node api/server/routes/auth.js /app/api/server/routes/auth.js
+COPY --chown=node:node api/server/routes/config.js /app/api/server/routes/config.js
+COPY --chown=node:node api/server/routes/oauth.js /app/api/server/routes/oauth.js
 COPY --chown=node:node api/server/routes/index.js /app/api/server/routes/index.js
+COPY --chown=node:node api/server/controllers/UserController.js /app/api/server/controllers/UserController.js
+COPY --chown=node:node api/strategies/openidStrategy.js /app/api/strategies/openidStrategy.js
 COPY --chown=node:node api/server/index.js /app/api/server/index.js
 COPY --chown=node:node api/server/experimental.js /app/api/server/experimental.js
 COPY --chown=node:node packages/api/src/endpoints/models.ts /app/packages/api/src/endpoints/models.ts
 COPY --chown=node:node packages/api/src/endpoints/config/models.ts /app/packages/api/src/endpoints/config/models.ts
 COPY --chown=node:node packages/api/src/index.ts /app/packages/api/src/index.ts
+COPY --chown=node:node packages/api/src/auth/index.ts /app/packages/api/src/auth/index.ts
+COPY --chown=node:node packages/api/src/auth/link.ts /app/packages/api/src/auth/link.ts
 COPY --chown=node:node packages/api/src/lihe/client.ts /app/packages/api/src/lihe/client.ts
 COPY --chown=node:node packages/api/src/lihe/config.ts /app/packages/api/src/lihe/config.ts
 COPY --chown=node:node packages/api/src/lihe/handlers.ts /app/packages/api/src/lihe/handlers.ts
 COPY --chown=node:node packages/api/src/lihe/index.ts /app/packages/api/src/lihe/index.ts
 COPY --chown=node:node packages/api/src/lihe/security.ts /app/packages/api/src/lihe/security.ts
 COPY --chown=node:node packages/api/src/lihe/storage.ts /app/packages/api/src/lihe/storage.ts
+COPY --chown=node:node packages/api/src/oauth/callback.ts /app/packages/api/src/oauth/callback.ts
+COPY --chown=node:node packages/api/src/utils/oidc.ts /app/packages/api/src/utils/oidc.ts
+COPY --chown=node:node packages/data-schemas/src/types/index.ts /app/packages/data-schemas/src/types/index.ts
+COPY --chown=node:node packages/data-schemas/src/types/openid.ts /app/packages/data-schemas/src/types/openid.ts
+COPY --chown=node:node packages/data-schemas/src/schema/index.ts /app/packages/data-schemas/src/schema/index.ts
+COPY --chown=node:node packages/data-schemas/src/schema/openid/tombstone.ts /app/packages/data-schemas/src/schema/openid/tombstone.ts
+COPY --chown=node:node packages/data-schemas/src/models/index.ts /app/packages/data-schemas/src/models/index.ts
+COPY --chown=node:node packages/data-schemas/src/models/openid/tombstone.ts /app/packages/data-schemas/src/models/openid/tombstone.ts
+COPY --chown=node:node packages/data-schemas/src/methods/index.ts /app/packages/data-schemas/src/methods/index.ts
+COPY --chown=node:node packages/data-schemas/src/methods/openid.ts /app/packages/data-schemas/src/methods/openid.ts
 COPY --chown=node:node packages/data-provider/src/api-endpoints.ts /app/packages/data-provider/src/api-endpoints.ts
 COPY --chown=node:node packages/data-provider/src/config.ts /app/packages/data-provider/src/config.ts
 COPY --chown=node:node packages/data-provider/src/data-service.ts /app/packages/data-provider/src/data-service.ts
@@ -40,8 +57,14 @@ COPY --chown=node:node client/src/data-provider/Lihe/mutations.ts /app/client/sr
 COPY --chown=node:node client/src/data-provider/Lihe/queries.ts /app/client/src/data-provider/Lihe/queries.ts
 COPY --chown=node:node client/src/components/Lihe/Connect.tsx /app/client/src/components/Lihe/Connect.tsx
 COPY --chown=node:node client/src/components/Lihe/ConnectionRow.tsx /app/client/src/components/Lihe/ConnectionRow.tsx
+COPY --chown=node:node client/src/components/Lihe/AccountLinkResult.tsx /app/client/src/components/Lihe/AccountLinkResult.tsx
 COPY --chown=node:node client/src/components/Lihe/index.ts /app/client/src/components/Lihe/index.ts
+COPY --chown=node:node client/src/components/Nav/SettingsTabs/Account/OpenIdAccountLink.tsx /app/client/src/components/Nav/SettingsTabs/Account/OpenIdAccountLink.tsx
 COPY --chown=node:node client/src/components/Nav/SettingsTabs/ProviderKeys/ProviderKeys.tsx /app/client/src/components/Nav/SettingsTabs/ProviderKeys/ProviderKeys.tsx
+COPY --chown=node:node client/src/components/Nav/Settings/context.tsx /app/client/src/components/Nav/Settings/context.tsx
+COPY --chown=node:node client/src/components/Nav/Settings/registry.tsx /app/client/src/components/Nav/Settings/registry.tsx
+COPY --chown=node:node client/src/components/Nav/Settings/types.ts /app/client/src/components/Nav/Settings/types.ts
+COPY --chown=node:node client/src/data-provider/Auth/mutations.ts /app/client/src/data-provider/Auth/mutations.ts
 COPY --chown=node:node client/src/routes/index.tsx /app/client/src/routes/index.tsx
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
@@ -57,7 +80,7 @@ WORKDIR /app
 RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const version = process.argv[1]; if (!/^v[0-9]+\.[0-9]+\.[0-9]+\.[1-9][0-9]*$/.test(version)) throw new Error("Invalid LibreChat local version"); const pkg = JSON.parse(fs.readFileSync(path, "utf8")); pkg.version = version; fs.writeFileSync(path, JSON.stringify(pkg, null, 2) + "\n");' "$LIBRECHAT_VERSION" \
   && node /tmp/librechat-patches/langchain/patch.cjs \
   && node /tmp/librechat-patches/langchain/verify.cjs \
-  && mkdir -p /tmp/librechat-build /app/client/node_modules/@vitejs /app/client/node_modules/@tanstack /app/packages/client/node_modules /app/packages/data-provider/node_modules/@rollup /app/packages/data-provider/node_modules/@types \
+  && mkdir -p /tmp/librechat-build /app/client/node_modules/@vitejs /app/client/node_modules/@tanstack /app/packages/client/node_modules /app/packages/data-provider/node_modules/@rollup /app/packages/data-provider/node_modules/@types /app/packages/data-schemas/node_modules \
   && npm install --prefix /tmp/librechat-build --no-save --ignore-scripts --package-lock=false \
     --fetch-retries=5 --fetch-retry-mintimeout=15000 --fetch-retry-maxtimeout=600000 \
     tsdown@0.22.2 \
@@ -82,6 +105,7 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
   && ln -s /tmp/librechat-build/node_modules/@tanstack/react-query-devtools /app/client/node_modules/@tanstack/react-query-devtools \
   && ln -s /app/client/node_modules/lucide-react /app/packages/client/node_modules/lucide-react \
   && ln -s /tmp/librechat-build/node_modules/tsdown /app/packages/data-provider/node_modules/tsdown \
+  && ln -s /tmp/librechat-build/node_modules/tsdown /app/packages/data-schemas/node_modules/tsdown \
   && ln -s /tmp/librechat-build/node_modules/tsdown /app/packages/api/node_modules/tsdown \
   && ln -s /tmp/librechat-build/node_modules/@rollup/plugin-replace /app/packages/data-provider/node_modules/@rollup/plugin-replace \
   && ln -s /tmp/librechat-build/node_modules/@types/js-yaml /app/packages/data-provider/node_modules/@types/js-yaml \
@@ -90,6 +114,9 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
   && cd /app/packages/data-provider \
   && /tmp/librechat-build/node_modules/.bin/tsdown \
   && /app/node_modules/.bin/tsc -p tsconfig.build.json \
+  && rm -rf /app/packages/data-schemas/dist \
+  && cd /app/packages/data-schemas \
+  && /tmp/librechat-build/node_modules/.bin/tsdown \
   && rm -rf /app/packages/api/dist \
   && cd /app/packages/api \
   && /tmp/librechat-build/node_modules/.bin/tsdown \
@@ -107,6 +134,7 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
     /app/client/node_modules/@tanstack/react-query-devtools \
     /app/packages/client/node_modules/lucide-react \
     /app/packages/data-provider/node_modules/tsdown \
+    /app/packages/data-schemas/node_modules/tsdown \
     /app/packages/api/node_modules/tsdown \
     /app/packages/data-provider/node_modules/@rollup/plugin-replace \
     /app/packages/data-provider/node_modules/@types/js-yaml \

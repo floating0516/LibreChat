@@ -6,6 +6,7 @@ const {
   MCPOAuthHandler,
   MCPTokenStorage,
   normalizeHttpError,
+  normalizeOpenIdIssuer,
   extractWebSearchEnvVars,
   deleteAllSharedLinksWithCleanup,
 } = require('@librechat/api');
@@ -49,12 +50,14 @@ const PUBLIC_USER_RESPONSE_FIELDS = [
 
 const sanitizeUserForResponse = (user) => {
   const source = user.toObject != null ? user.toObject() : user;
-  return PUBLIC_USER_RESPONSE_FIELDS.reduce((userData, field) => {
+  const userData = PUBLIC_USER_RESPONSE_FIELDS.reduce((result, field) => {
     if (source[field] !== undefined) {
-      userData[field] = source[field];
+      result[field] = source[field];
     }
-    return userData;
+    return result;
   }, {});
+  userData.openidLinked = !!source.openidId && !!source.openidIssuer;
+  return userData;
 };
 
 const getUserController = async (req, res) => {
@@ -333,7 +336,7 @@ const deleteUserController = async (req, res) => {
   try {
     const existingUser = await db.getUserById(
       user.id,
-      '+totpSecret +backupCodes _id twoFactorEnabled',
+      '+totpSecret +backupCodes _id twoFactorEnabled openidId openidIssuer tenantId',
     );
     if (existingUser && existingUser.twoFactorEnabled) {
       const { token, backupCode } = req.body;
@@ -345,6 +348,21 @@ const deleteUserController = async (req, res) => {
           'TOTP token or backup code is required to delete account with 2FA enabled';
         return res.status(result.status ?? 400).json({ message: msg });
       }
+    }
+
+    if (existingUser?.openidId) {
+      const openidIssuer = normalizeOpenIdIssuer(
+        existingUser.openidIssuer || process.env.OPENID_ISSUER,
+      );
+      if (!openidIssuer) {
+        throw new Error('Cannot retire an OpenID identity without its issuer');
+      }
+      await db.createOpenIdIdentityTombstone({
+        userId: existingUser._id.toString(),
+        tenantId: existingUser.tenantId,
+        openidId: existingUser.openidId,
+        openidIssuer,
+      });
     }
 
     await db.deleteMessages({ user: user.id });

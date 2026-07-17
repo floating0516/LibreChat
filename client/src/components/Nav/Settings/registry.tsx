@@ -18,6 +18,7 @@ import {
 import DisplayUsernameMessages from '../SettingsTabs/Account/DisplayUsernameMessages';
 import ConversationModeSwitch from '../SettingsTabs/Speech/ConversationModeSwitch';
 import EnableTwoFactorItem from '../SettingsTabs/Account/TwoFactorAuthentication';
+import OpenIdAccountLink from '../SettingsTabs/Account/OpenIdAccountLink';
 import ImportConversations from '../SettingsTabs/Data/ImportConversations';
 import { toggleControl, ThemeSetting, LangSetting } from './controls';
 import BackupCodesItem from '../SettingsTabs/Account/BackupCodesItem';
@@ -516,6 +517,15 @@ export const registry: SettingEntry[] = [
     Component: Avatar,
   },
   // Account · Security
+  {
+    id: 'liheAccount',
+    tab: ACCOUNT,
+    section: 'security',
+    labelKey: 'com_ui_lihe_account',
+    keywords: ['lihe', 'openid', 'account', 'login'],
+    show: (ctx) => ctx.openidAccountLinkingEnabled,
+    Component: OpenIdAccountLink,
+  },
   {
     id: 'twoFactor',
     tab: ACCOUNT,

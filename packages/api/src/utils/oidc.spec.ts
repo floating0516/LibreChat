@@ -1,5 +1,91 @@
-import { extractOpenIDTokenInfo, isOpenIDTokenValid, processOpenIDPlaceholders } from './oidc';
+import {
+  extractOpenIDTokenInfo,
+  isOpenIDTokenValid,
+  processOpenIDPlaceholders,
+  resolveOpenIDTokenEndpointAuthMethod,
+  sanitizeOpenIdRequestBodyForLogging,
+  sanitizeOpenIdUrlForLogging,
+} from './oidc';
 import type { IUser } from '@librechat/data-schemas';
+
+describe('resolveOpenIDTokenEndpointAuthMethod', () => {
+  it('honors an explicit client_secret_basic configuration', () => {
+    expect(
+      resolveOpenIDTokenEndpointAuthMethod({
+        configuredMethod: 'client_secret_basic',
+        clientSecret: 'secret',
+        usePKCE: true,
+        generateNonce: true,
+      }),
+    ).toBe('client_secret_basic');
+  });
+
+  it('preserves the existing public-client and nonce defaults', () => {
+    expect(
+      resolveOpenIDTokenEndpointAuthMethod({
+        clientSecret: undefined,
+        usePKCE: true,
+        generateNonce: true,
+      }),
+    ).toBe('none');
+    expect(
+      resolveOpenIDTokenEndpointAuthMethod({
+        clientSecret: 'secret',
+        usePKCE: true,
+        generateNonce: true,
+      }),
+    ).toBe('client_secret_post');
+  });
+
+  it('rejects incompatible explicit configurations', () => {
+    expect(() =>
+      resolveOpenIDTokenEndpointAuthMethod({
+        configuredMethod: 'none',
+        clientSecret: 'secret',
+        usePKCE: true,
+        generateNonce: false,
+      }),
+    ).toThrow('cannot use a client secret');
+    expect(() =>
+      resolveOpenIDTokenEndpointAuthMethod({
+        configuredMethod: 'client_secret_basic',
+        clientSecret: undefined,
+        usePKCE: true,
+        generateNonce: false,
+      }),
+    ).toThrow('requires a client secret');
+  });
+});
+
+describe('OpenID log sanitization', () => {
+  it('redacts protocol secrets from URLs and form bodies', () => {
+    const sanitizedUrl = sanitizeOpenIdUrlForLogging(
+      'https://issuer.example/callback?code=secret-code&state=secret-state&iss=issuer',
+    );
+    const sanitizedBody = sanitizeOpenIdRequestBodyForLogging(
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code: 'secret-code',
+        code_verifier: 'secret-verifier',
+        client_secret: 'secret-client',
+      }),
+    );
+
+    expect(sanitizedUrl).not.toContain('secret-code');
+    expect(sanitizedUrl).not.toContain('secret-state');
+    expect(sanitizedUrl).toContain('iss=issuer');
+    expect(sanitizedBody).not.toContain('secret-code');
+    expect(sanitizedBody).not.toContain('secret-verifier');
+    expect(sanitizedBody).not.toContain('secret-client');
+    expect(sanitizedBody).toContain('grant_type=authorization_code');
+  });
+
+  it('omits unstructured request bodies', () => {
+    expect(sanitizeOpenIdRequestBodyForLogging('{"token":"secret"}')).toBe(
+      '[request body omitted]',
+    );
+  });
+});
 
 describe('OpenID Token Utilities', () => {
   describe('extractOpenIDTokenInfo', () => {

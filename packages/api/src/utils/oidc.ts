@@ -11,6 +11,97 @@ export interface OpenIDTokenInfo {
   claims?: Record<string, unknown>;
 }
 
+export type OpenIDTokenEndpointAuthMethod = 'client_secret_basic' | 'client_secret_post' | 'none';
+
+export type ResolveOpenIDTokenEndpointAuthMethodOptions = {
+  configuredMethod?: string;
+  clientSecret?: string;
+  usePKCE: boolean;
+  generateNonce: boolean;
+};
+
+const OPENID_TOKEN_ENDPOINT_AUTH_METHODS = new Set<OpenIDTokenEndpointAuthMethod>([
+  'client_secret_basic',
+  'client_secret_post',
+  'none',
+]);
+
+const OPENID_LOG_SENSITIVE_FIELDS = new Set([
+  'access_token',
+  'assertion',
+  'client_secret',
+  'code',
+  'code_verifier',
+  'id_token',
+  'nonce',
+  'refresh_token',
+  'state',
+  'token',
+]);
+
+function sanitizeOpenIdSearchParams(params: URLSearchParams): URLSearchParams {
+  const sanitized = new URLSearchParams(params);
+  for (const key of [...sanitized.keys()]) {
+    if (OPENID_LOG_SENSITIVE_FIELDS.has(key.toLowerCase())) {
+      sanitized.set(key, '[REDACTED]');
+    }
+  }
+  return sanitized;
+}
+
+export function sanitizeOpenIdUrlForLogging(value: string | URL): string {
+  try {
+    const url = new URL(value.toString());
+    url.search = sanitizeOpenIdSearchParams(url.searchParams).toString();
+    return url.toString();
+  } catch {
+    return '[invalid OpenID URL]';
+  }
+}
+
+export function sanitizeOpenIdRequestBodyForLogging(body: unknown): string {
+  if (body instanceof URLSearchParams) {
+    return sanitizeOpenIdSearchParams(body).toString();
+  }
+  return '[request body omitted]';
+}
+
+export function resolveOpenIDTokenEndpointAuthMethod({
+  configuredMethod,
+  clientSecret,
+  usePKCE,
+  generateNonce,
+}: ResolveOpenIDTokenEndpointAuthMethodOptions): OpenIDTokenEndpointAuthMethod | undefined {
+  const secret = clientSecret?.trim();
+  const requestedMethod = configuredMethod?.trim();
+
+  if (requestedMethod) {
+    if (!OPENID_TOKEN_ENDPOINT_AUTH_METHODS.has(requestedMethod as OpenIDTokenEndpointAuthMethod)) {
+      throw new Error(`Unsupported OpenID token endpoint auth method: ${requestedMethod}`);
+    }
+
+    const method = requestedMethod as OpenIDTokenEndpointAuthMethod;
+    if (method === 'none' && secret) {
+      throw new Error('OpenID token endpoint auth method "none" cannot use a client secret');
+    }
+    if (method === 'none' && !usePKCE) {
+      throw new Error('OpenID token endpoint auth method "none" requires PKCE');
+    }
+    if (method !== 'none' && !secret) {
+      throw new Error(`OpenID token endpoint auth method "${method}" requires a client secret`);
+    }
+    return method;
+  }
+
+  if (!secret && usePKCE) {
+    return 'none';
+  }
+  if (secret && generateNonce) {
+    return 'client_secret_post';
+  }
+  return undefined;
+}
+
 function isFederatedTokens(obj: unknown): obj is OIDCTokens {
   if (!obj || typeof obj !== 'object') {
     return false;

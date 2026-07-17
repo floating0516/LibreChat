@@ -15,6 +15,7 @@ const config: LiheConfig = {
   stateSecret: 'state-secret',
   scope: 'models:read chat:write',
   providers: ['openAI', 'anthropic'],
+  requireOpenIdSubject: false,
   cookiePath: '/api/integrations/lihe',
   resultPath: '/connect/lihe',
 };

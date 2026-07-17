@@ -92,6 +92,17 @@ export const useDeleteUserMutation = (
   });
 };
 
+export const useStartOpenIdLinkMutation = (): UseMutationResult<
+  t.TOpenIdLinkStartResponse,
+  unknown,
+  t.TOpenIdLinkStartRequest,
+  unknown
+> => {
+  return useMutation([MutationKeys.openIdLinkStart], (payload: t.TOpenIdLinkStartRequest) =>
+    dataService.startOpenIdLink(payload),
+  );
+};
+
 export const useEnableTwoFactorMutation = (): UseMutationResult<
   t.TEnable2FAResponse,
   unknown,

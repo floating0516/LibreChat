@@ -14,6 +14,7 @@ const ctx: SettingsContextValue = {
   hasMultiConvo: false,
   hasPrompts: false,
   isLocalProvider: true,
+  openidAccountLinkingEnabled: false,
   twoFactorEnabled: false,
   allowAccountDeletion: true,
   aboutEnabled: false,

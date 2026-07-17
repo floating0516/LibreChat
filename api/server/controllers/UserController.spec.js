@@ -41,6 +41,7 @@ jest.mock('~/models', () => {
     deleteFiles: jest.fn().mockResolvedValue(undefined),
     updateUser: jest.fn(),
     getUserById: jest.fn().mockResolvedValue(null),
+    createOpenIdIdentityTombstone: jest.fn().mockResolvedValue(undefined),
     findToken: jest.fn(),
     getFiles: jest.fn().mockResolvedValue([]),
     removeUserFromAllGroups: jest.fn().mockImplementation(async (userId) => {
@@ -92,13 +93,18 @@ jest.mock('~/cache', () => ({
 let mongoServer;
 
 beforeAll(async () => {
+  const externalUri = process.env.USER_CONTROLLER_TEST_MONGO_URI;
+  if (externalUri) {
+    await mongoose.connect(externalUri);
+    return;
+  }
   mongoServer = await MongoMemoryServer.create();
   await mongoose.connect(mongoServer.getUri());
 });
 
 afterAll(async () => {
   await mongoose.disconnect();
-  await mongoServer.stop();
+  await mongoServer?.stop();
 });
 
 afterEach(async () => {
@@ -237,6 +243,7 @@ describe('getUserController', () => {
       createdAt,
       updatedAt,
       tenantId: 'tenant-id',
+      openidLinked: true,
     });
     expect(sentUser).not.toHaveProperty('password');
     expect(sentUser).not.toHaveProperty('__v');
@@ -275,6 +282,29 @@ describe('deleteUserController', () => {
 
     expect(mockRes.status).toHaveBeenCalledWith(200);
     expect(mockRes.send).toHaveBeenCalledWith({ message: 'User deleted' });
+  });
+
+  it('retires an OpenID identity before deleting any user data', async () => {
+    const userId = new mongoose.Types.ObjectId();
+    const { getUserById, createOpenIdIdentityTombstone, deleteMessages } = require('~/models');
+    getUserById.mockResolvedValueOnce({
+      _id: userId,
+      openidId: 'stable-sub',
+      openidIssuer: 'https://api.lihe.chat/',
+    });
+    const req = { user: { id: userId.toString(), _id: userId, email: 'oidc@test.com' } };
+
+    await deleteUserController(req, mockRes);
+
+    expect(createOpenIdIdentityTombstone).toHaveBeenCalledWith({
+      userId: userId.toString(),
+      tenantId: undefined,
+      openidId: 'stable-sub',
+      openidIssuer: 'https://api.lihe.chat',
+    });
+    expect(createOpenIdIdentityTombstone.mock.invocationCallOrder[0]).toBeLessThan(
+      deleteMessages.mock.invocationCallOrder[0],
+    );
   });
 
   it('should remove the user from all groups via $pullAll', async () => {

@@ -2,7 +2,13 @@ const undici = require('undici');
 const fetch = require('node-fetch');
 const jwtDecode = require('jsonwebtoken/decode');
 const { ErrorTypes, FileSources } = require('librechat-data-provider');
-const { findUser, createUser, updateUser, findRolesByNames } = require('~/models');
+const {
+  findUser,
+  createUser,
+  updateUser,
+  findRolesByNames,
+  isOpenIdIdentityTombstoned,
+} = require('~/models');
 const {
   getOpenIdProxyDispatcher,
   resolveAppConfigForUser,
@@ -100,6 +106,8 @@ jest.mock('~/models', () => ({
   createUser: jest.fn(),
   updateUser: jest.fn(),
   findRolesByNames: jest.fn(),
+  linkOpenIdIdentity: jest.fn(),
+  isOpenIdIdentityTombstoned: jest.fn().mockResolvedValue(false),
 }));
 jest.mock('@librechat/data-schemas', () => ({
   ...jest.requireActual('@librechat/api'),
@@ -222,6 +230,7 @@ describe('setupOpenId', () => {
       set: jest.fn(),
     }));
     getOpenIdProxyDispatcher.mockReturnValue(undefined);
+    isOpenIdIdentityTombstoned.mockResolvedValue(false);
     require('openid-client').genericGrantRequest.mockReset();
     require('openid-client').genericGrantRequest.mockResolvedValue({
       access_token: 'exchanged_graph_token',
@@ -249,6 +258,11 @@ describe('setupOpenId', () => {
     delete process.env.PROXY;
     delete process.env.OPENID_USE_PKCE;
     delete process.env.OPENID_GENERATE_NONCE;
+    delete process.env.OPENID_TOKEN_ENDPOINT_AUTH_METHOD;
+    delete process.env.OPENID_ACCOUNT_LINKING_ENABLED;
+    delete process.env.OPENID_SESSION_SECRET;
+    delete process.env.ALLOW_SOCIAL_LOGIN;
+    process.env.ALLOW_SOCIAL_REGISTRATION = 'true';
     delete process.env.OPENID_ROLE_SYNC_ENABLED;
     delete process.env.OPENID_ROLE_SYNC_API_ENABLED;
     delete process.env.OPENID_ROLE_SYNC_SOURCE;
@@ -327,6 +341,28 @@ describe('setupOpenId', () => {
       expect(metadata.token_endpoint_auth_method).toBe('client_secret_post');
     });
 
+    it('uses an explicitly configured client_secret_basic method', async () => {
+      process.env.OPENID_USE_PKCE = 'true';
+      process.env.OPENID_GENERATE_NONCE = 'true';
+      process.env.OPENID_CLIENT_SECRET = 'my-secret';
+      process.env.OPENID_TOKEN_ENDPOINT_AUTH_METHOD = 'client_secret_basic';
+
+      await setupOpenId();
+
+      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      expect(metadata.client_secret).toBe('my-secret');
+      expect(metadata.token_endpoint_auth_method).toBe('client_secret_basic');
+    });
+
+    it('rejects a secret-based auth method when the client secret is absent', async () => {
+      process.env.OPENID_USE_PKCE = 'true';
+      delete process.env.OPENID_CLIENT_SECRET;
+      process.env.OPENID_TOKEN_ENDPOINT_AUTH_METHOD = 'client_secret_basic';
+
+      await expect(setupOpenId()).resolves.toBeNull();
+      expect(openidClient.discovery).not.toHaveBeenCalled();
+    });
+
     it('treats whitespace-only secret as absent', async () => {
       process.env.OPENID_USE_PKCE = 'true';
       process.env.OPENID_CLIENT_SECRET = '   ';
@@ -372,6 +408,26 @@ describe('setupOpenId', () => {
           method: 'GET',
           dispatcher,
         },
+      );
+    });
+
+    it('registers a separate request-aware strategy for account linking', async () => {
+      process.env.ALLOW_SOCIAL_LOGIN = 'true';
+      process.env.OPENID_ACCOUNT_LINKING_ENABLED = 'true';
+      process.env.OPENID_USE_PKCE = 'true';
+      process.env.OPENID_SESSION_SECRET = 'link-session-secret';
+
+      await setupOpenId();
+
+      const linkStrategy = require('openid-client/passport').__getStrategyByName('openidLink');
+      expect(linkStrategy).toBeDefined();
+      expect(linkStrategy.options).toEqual(
+        expect.objectContaining({
+          name: 'openidLink',
+          sessionKey: 'openidLink',
+          passReqToCallback: true,
+          callbackURL: 'https://example.com/oauth/openid/link/callback',
+        }),
       );
     });
   });
@@ -430,6 +486,42 @@ describe('setupOpenId', () => {
         name: `${userinfo.given_name} ${userinfo.family_name}`,
       }),
       { enabled: false },
+      true,
+      true,
+    );
+  });
+
+  it('blocks login before user lookup when the OpenID identity is retired', async () => {
+    isOpenIdIdentityTombstoned.mockResolvedValue(true);
+
+    const result = await validate(tokenset);
+
+    expect(result.user).toBe(false);
+    expect(result.details.message).toBe(ErrorTypes.AUTH_FAILED);
+    expect(findUser).not.toHaveBeenCalled();
+    expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it('does not create an OpenID user when social registration is disabled', async () => {
+    process.env.ALLOW_SOCIAL_REGISTRATION = 'false';
+
+    const result = await validate(tokenset);
+
+    expect(result.user).toBe(false);
+    expect(result.details.message).toBe(ErrorTypes.AUTH_FAILED);
+    expect(createUser).not.toHaveBeenCalled();
+    expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('treats only a boolean true email_verified claim as verified', async () => {
+    const userinfo = { ...tokenset.claims(), email_verified: 'true' };
+
+    const { user } = await validate({ ...tokenset, claims: () => userinfo });
+
+    expect(user.emailVerified).toBe(false);
+    expect(createUser).toHaveBeenCalledWith(
+      expect.objectContaining({ emailVerified: false }),
+      expect.anything(),
       true,
       true,
     );

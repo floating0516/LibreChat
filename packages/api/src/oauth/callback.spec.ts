@@ -45,7 +45,7 @@ function createAuthenticator(
   ) => void,
 ) {
   const passport = {
-    authenticate: jest.fn((_strategy: 'openid', _options, callback: CallbackFn) => {
+    authenticate: jest.fn((_strategy: string, _options, callback: CallbackFn) => {
       return (req: TestRequest, res: Response, next: NextFunction) => {
         callbackHandler(callback, req, res, next);
       };
@@ -79,6 +79,36 @@ describe('OpenID OAuth callback helpers', () => {
 
     expect(res.redirect).toHaveBeenCalledWith(
       'http://client.test/login?redirect=false&error=auth_failed',
+    );
+  });
+
+  it('supports a dedicated strategy and failure URL for account linking', () => {
+    const req = createRequest();
+    const res = createResponse();
+    const next = createNext();
+    const passport = {
+      authenticate: jest.fn((_strategy: string, _options, callback: CallbackFn) => {
+        return () => callback(null, false, { message: 'identity_in_use' });
+      }),
+    };
+    const middleware = createOpenIDCallbackAuthenticator({
+      passport,
+      logger,
+      clientDomain: 'http://client.test',
+      authFailedError: 'auth_failed',
+      strategy: 'openidLink',
+      failureRedirectUrl: 'http://client.test/connect/lihe-account?result=error',
+    });
+
+    middleware(req, res, next);
+
+    expect(passport.authenticate).toHaveBeenCalledWith(
+      'openidLink',
+      { failureMessage: true, session: false },
+      expect.any(Function),
+    );
+    expect(res.redirect).toHaveBeenCalledWith(
+      'http://client.test/connect/lihe-account?result=error',
     );
   });
 

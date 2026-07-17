@@ -223,6 +223,7 @@ export type TUser = {
   avatar: string;
   role: string;
   provider: string;
+  openidLinked?: boolean;
   tenantId?: string;
   plugins?: string[];
   twoFactorEnabled?: boolean;
@@ -232,6 +233,14 @@ export type TUser = {
   };
   createdAt: string;
   updatedAt: string;
+};
+
+export type TOpenIdLinkStartRequest = {
+  returnTo?: string;
+};
+
+export type TOpenIdLinkStartResponse = {
+  authorizationUrl: string;
 };
 
 export type TGetConversationsResponse = {

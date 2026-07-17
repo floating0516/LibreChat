@@ -70,6 +70,7 @@ export type TLiheConnectionStatus = {
   selectionUrl?: string;
   connectedAt?: string;
   accountLabel?: string;
+  requiresAccountLink?: boolean;
 };
 
 export const liheStartRequestSchema = z
