@@ -4,6 +4,21 @@ export const liheProviderSchema = z.enum(['openAI', 'anthropic', 'google']);
 
 export type TLiheProvider = z.infer<typeof liheProviderSchema>;
 
+const LIHE_API_KEY_ID_MAX = '9223372036854775807';
+
+export const liheApiKeyIdSchema = z
+  .string()
+  .regex(/^[1-9][0-9]{0,18}$/)
+  .refine((value) => value.length < LIHE_API_KEY_ID_MAX.length || value <= LIHE_API_KEY_ID_MAX);
+
+export function parseLiheApiKeyId(values: readonly string[]): string | null {
+  if (values.length !== 1) {
+    return null;
+  }
+  const parsed = liheApiKeyIdSchema.safeParse(values[0]);
+  return parsed.success ? parsed.data : null;
+}
+
 export const liheTokenResponseSchema = z.object({
   access_token: z.string().min(16).max(8192),
   token_type: z.literal('Bearer'),
@@ -52,13 +67,19 @@ export type TLiheConnectionStatus = {
   needsReconnect: boolean;
   hasExistingKeys: boolean;
   providers: TLiheProvider[];
+  selectionUrl?: string;
   connectedAt?: string;
   accountLabel?: string;
 };
 
-export type TLiheStartRequest = {
-  replaceExisting?: boolean;
-};
+export const liheStartRequestSchema = z
+  .object({
+    apiKeyId: liheApiKeyIdSchema,
+    replaceExisting: z.boolean().optional(),
+  })
+  .strict();
+
+export type TLiheStartRequest = z.infer<typeof liheStartRequestSchema>;
 
 export type TLiheStartResponse = {
   authorizationUrl: string;

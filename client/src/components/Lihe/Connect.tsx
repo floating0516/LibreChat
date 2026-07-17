@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@librechat/client';
 import { CheckCircle2, CircleAlert, Link2, LoaderCircle } from 'lucide-react';
-import { QueryKeys } from 'librechat-data-provider';
+import { parseLiheApiKeyId, QueryKeys } from 'librechat-data-provider';
 import { useLiheConnectionStatusQuery, useStartLiheConnectionMutation } from '~/data-provider';
 import { useLocalize } from '~/hooks';
 
@@ -23,16 +23,25 @@ export default function LiheConnect() {
 
   const result = searchParams.get('result');
   const reconnect = searchParams.get('reconnect') === '1';
+  const apiKeyIdValues = searchParams.getAll('api_key_id');
+  const apiKeyId = parseLiheApiKeyId(apiKeyIdValues);
+  const apiKeyIdMissing = apiKeyIdValues.length === 0;
+  const apiKeyIdInvalid = !apiKeyIdMissing && apiKeyId == null;
 
   const begin = useCallback(
     (replaceExisting: boolean) => {
       if (started.current) {
         return;
       }
+      if (!apiKeyId) {
+        setAttemptFailed(true);
+        setPhase('error');
+        return;
+      }
       started.current = true;
       setPhase('loading');
       startConnection.mutate(
-        { replaceExisting },
+        { apiKeyId, replaceExisting },
         {
           onSuccess: ({ authorizationUrl }) => window.location.assign(authorizationUrl),
           onError: () => {
@@ -42,7 +51,7 @@ export default function LiheConnect() {
         },
       );
     },
-    [startConnection],
+    [apiKeyId, startConnection],
   );
 
   useEffect(() => {
@@ -71,8 +80,20 @@ export default function LiheConnect() {
       setPhase('unavailable');
       return;
     }
+    if (apiKeyIdInvalid) {
+      setPhase('error');
+      return;
+    }
     if (status.data.connected && !reconnect) {
       navigate('/c/new', { replace: true });
+      return;
+    }
+    if (apiKeyIdMissing) {
+      if (status.data.selectionUrl) {
+        window.location.assign(status.data.selectionUrl);
+      } else {
+        setPhase('error');
+      }
       return;
     }
     if (status.data.hasExistingKeys && !reconnect && !confirmed) {
@@ -82,6 +103,8 @@ export default function LiheConnect() {
     begin(reconnect || confirmed || status.data.needsReconnect);
   }, [
     attemptFailed,
+    apiKeyIdInvalid,
+    apiKeyIdMissing,
     begin,
     confirmed,
     navigate,

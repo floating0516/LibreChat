@@ -1,6 +1,6 @@
 # LibreChat 本机部署计划
 
-此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.6`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
+此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.7`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
 
 本部署启动三个容器：LibreChat、MongoDB 和官方 Admin Panel。三者使用主机网络，但进程分别只绑定 `127.0.0.1:3080`、`127.0.0.1:27017` 与 `127.0.0.1:3000`，不会监听公网，也不会修改 DNS、Tunnel、Nginx 或现有的 `80/443` 服务。
 
@@ -50,7 +50,9 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 `v0.8.7.5` 对基础镜像中的 `@langchain/openai@1.4.5` 应用版本锁定的 Responses 转换补丁，使缺省或为 `null` 的 `output_text.annotations` 按空数组处理。构建会精确核对待修改源码，并分别执行 CommonJS 与 ES module 行为验证；依赖版本或上游代码不匹配时构建会直接失败。
 
-待发布的 `v0.8.7.6` 增加 Lihe API 一键连接接收端：采用 Authorization Code、PKCE、HMAC state 与 HttpOnly OAuth Cookie，服务器间兑换长期专用 Token，并复用现有用户 Key 加密存储。导入会保存旧 Provider Key 快照，解除绑定时恢复未被用户手工修改的旧值。该功能默认关闭，只有 `api.lihe.chat` 完成 `LIHE_CONNECT_PROTOCOL.zh-CN.md`、两端配置 client secret 并完成联调后才启用。
+`v0.8.7.6` 增加 Lihe API 一键连接接收端：采用 Authorization Code、PKCE、HMAC state 与 HttpOnly OAuth Cookie，服务器间兑换长期专用 Token，并复用现有用户 Key 加密存储。导入会保存旧 Provider Key 快照，解除绑定时恢复未被用户手工修改的旧值。
+
+待发布的 `v0.8.7.7` 补齐 API 站所选 `api_key_id` 的安全传递：浏览器端与服务端只接受规范的正 int64 字符串，服务端拒绝缺失或夹带未知字段的开始请求，再把 ID 加入受 PKCE/state 保护的授权流程。API 站继续负责认证用户、Key 归属、状态与兑换事务的二次复验；本站本地入口在缺少 ID 时返回 API 站选择页。公网域名脚本同时固定使用 `--no-deps`，避免共享 `.env` 变化连带重建 MongoDB。
 
 官方升级时，先把新官方代码合并到本地定制分支并解决冲突，再把 `LIBRECHAT_UPSTREAM_VERSION` 和 `LIBRECHAT_BASE_DIGEST` 更新到已验证的新发布，把 `LIBRECHAT_LOCAL_REVISION` 重置为 `1`，完成构建与健康检查后再部署。
 

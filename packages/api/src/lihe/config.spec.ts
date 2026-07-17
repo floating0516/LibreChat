@@ -33,6 +33,7 @@ describe('Lihe Connect configuration', () => {
     });
     expect(config?.authorizationUrl.href).toBe('https://api.lihe.chat/oauth/authorize');
     expect(config?.callbackUrl.href).toBe('https://lihe.chat/api/integrations/lihe/callback');
+    expect(config?.selectionUrl.href).toBe('https://api.lihe.chat/integrations/lihe');
   });
 
   it('maps malformed and insecure production URLs to a configuration error', () => {

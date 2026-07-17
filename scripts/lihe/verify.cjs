@@ -7,6 +7,7 @@ const api = require('/app/packages/api/dist/index.cjs');
 const config = {
   apiBaseUrl: new URL('https://api.lihe.invalid/'),
   authorizationUrl: new URL('https://api.lihe.invalid/oauth/authorize'),
+  selectionUrl: new URL('https://api.lihe.invalid/integrations/lihe'),
   tokenUrl: new URL('https://api.lihe.invalid/oauth/token'),
   revokeUrl: new URL('https://api.lihe.invalid/oauth/revoke'),
   modelsUrl: new URL('https://api.lihe.invalid/v1/models'),
@@ -98,7 +99,49 @@ function assertClientBundleContains(expected) {
 }
 
 async function verify() {
-  assertClientBundleContains(['/connect/lihe', '/api/integrations/lihe']);
+  assertClientBundleContains(['/connect/lihe', '/api/integrations/lihe', 'api_key_id']);
+
+  const provider = await import('/app/packages/data-provider/dist/index.mjs');
+  assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '90' }).success, true);
+  assert.equal(provider.liheStartRequestSchema.safeParse({}).success, false);
+  assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '01' }).success, false);
+
+  Object.assign(process.env, {
+    LIHE_CONNECT_ENABLED: 'true',
+    LIHE_CONNECT_API_BASE_URL: 'https://api.lihe.invalid',
+    LIHE_CONNECT_CLIENT_ID: 'lihe-chat',
+    LIHE_CONNECT_CLIENT_SECRET: 'synthetic-client-secret',
+    LIHE_CONNECT_PROVIDERS: 'openAI,anthropic',
+    JWT_SECRET: 'synthetic-jwt-secret',
+    DOMAIN_SERVER: 'https://lihe.invalid',
+    SESSION_COOKIE_SECURE: 'false',
+  });
+  const flowManager = {
+    initFlow: async () => undefined,
+    getFlowState: async () => null,
+    deleteFlow: async () => undefined,
+  };
+  const handlers = api.createLiheHandlers({ ...keyDeps, flowManager, fetcher });
+  const responseState = { status: 200, body: null };
+  const response = {
+    status(value) {
+      responseState.status = value;
+      return this;
+    },
+    json(value) {
+      responseState.body = value;
+      return this;
+    },
+    cookie() {
+      return this;
+    },
+  };
+  await handlers.start(
+    { user: { id: 'synthetic-user' }, body: { apiKeyId: '90', replaceExisting: true } },
+    response,
+  );
+  assert.equal(responseState.status, 200);
+  assert.equal(new URL(responseState.body.authorizationUrl).searchParams.get('api_key_id'), '90');
 
   const pkce = api.createLihePkce();
   assert.equal(pkce.verifier.length, 64);

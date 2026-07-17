@@ -89,11 +89,28 @@ describe('Lihe Connect handlers', () => {
     app.post('/api/integrations/lihe/disconnect', handlers.disconnect);
     const agent = request.agent(app);
 
-    const start = await agent.post('/api/integrations/lihe/start').send({});
+    for (const body of [
+      {},
+      { apiKeyId: 90 },
+      { apiKeyId: '0' },
+      { apiKeyId: '01' },
+      { apiKeyId: '-1' },
+      { apiKeyId: '1.5' },
+      { apiKeyId: '1e2' },
+      { apiKeyId: '9223372036854775808' },
+      { apiKeyId: '90', userId: 'other-user' },
+    ]) {
+      const invalidStart = await agent.post('/api/integrations/lihe/start').send(body);
+      expect(invalidStart.status).toBe(400);
+      expect(invalidStart.body).toEqual({ error: 'invalid_request' });
+    }
+
+    const start = await agent.post('/api/integrations/lihe/start').send({ apiKeyId: '90' });
     expect(start.status).toBe(200);
     const authorizationUrl = new URL(start.body.authorizationUrl);
     expect(authorizationUrl.origin).toBe('https://api.lihe.chat');
     expect(authorizationUrl.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(authorizationUrl.searchParams.get('api_key_id')).toBe('90');
 
     const callback = await agent.get('/api/integrations/lihe/callback').query({
       code: 'single-use-code',
@@ -110,6 +127,7 @@ describe('Lihe Connect handlers', () => {
       connected: true,
       providers: ['openAI', 'anthropic'],
       accountLabel: 'Lihe user',
+      selectionUrl: 'https://api.lihe.chat/integrations/lihe',
     });
     expect(JSON.stringify(status.body)).not.toContain('lhc_handler_token');
 
@@ -126,7 +144,9 @@ describe('Lihe Connect handlers', () => {
     expect(revocations).toBe(1);
 
     tokenScope = 'models:read chat:write account:read';
-    const overScopedStart = await agent.post('/api/integrations/lihe/start').send({});
+    const overScopedStart = await agent
+      .post('/api/integrations/lihe/start')
+      .send({ apiKeyId: '90' });
     const overScopedUrl = new URL(overScopedStart.body.authorizationUrl);
     const overScopedCallback = await agent.get('/api/integrations/lihe/callback').query({
       code: 'over-scoped-code',

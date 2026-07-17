@@ -5,6 +5,7 @@ import { exchangeLiheCode, validateLiheToken, revokeLiheToken } from './client';
 const config: LiheConfig = {
   apiBaseUrl: new URL('https://api.lihe.chat/'),
   authorizationUrl: new URL('https://api.lihe.chat/oauth/authorize'),
+  selectionUrl: new URL('https://api.lihe.chat/integrations/lihe'),
   tokenUrl: new URL('https://api.lihe.chat/oauth/token'),
   revokeUrl: new URL('https://api.lihe.chat/oauth/revoke'),
   modelsUrl: new URL('https://api.lihe.chat/v1/models'),

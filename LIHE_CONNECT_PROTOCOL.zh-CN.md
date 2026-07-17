@@ -9,7 +9,7 @@
 | API 平台           | `https://api.lihe.chat`                            |
 | 对话站             | `https://lihe.chat`                                |
 | `client_id`        | `lihe-chat`                                        |
-| API 站按钮         | `https://lihe.chat/connect/lihe`                   |
+| API 站按钮         | `https://lihe.chat/connect/lihe?api_key_id=<id>`   |
 | OAuth 回调         | `https://lihe.chat/api/integrations/lihe/callback` |
 | 授权范围           | `models:read chat:write`                           |
 | 支持的 Provider 值 | `openAI`、`anthropic`、`google`                    |
@@ -21,10 +21,12 @@
 API 用户登录后点击“导入对话站”，浏览器在当前标签页打开：
 
 ```text
-https://lihe.chat/connect/lihe
+https://lihe.chat/connect/lihe?api_key_id=<id>
 ```
 
-按钮不能附带 API Key、Token、用户 ID、邮箱或任意回调地址。对话站负责创建 `state` 和 PKCE，再跳回 API 平台授权。
+`api_key_id` 必须是 API 站数据库中的规范十进制正整数，范围为 `1..9223372036854775807`。它只是所选 Key 的不透明标识，不是认证凭据；按钮不能附带 API Key 明文、Token、用户 ID、邮箱或任意回调地址。对话站只验证 ID 格式，不信任其归属，负责创建 `state` 和 PKCE，再把 ID 转发给 API 平台授权。
+
+API 平台必须从登录认证上下文取得当前用户，验证 `api_key_id` 对应 Key 属于该用户、未删除且处于可用状态，并验证所属分组与 Provider 可用。授权码必须同时绑定用户与 Key；Token 兑换事务内必须再次复验归属和状态，并拒绝换绑、失效 Key 与竞态重放。
 
 ## 2. 授权接口
 
@@ -43,8 +45,9 @@ GET /oauth/authorize
 | `state`                 | 原样返回，不记录日志            |
 | `code_challenge`        | PKCE S256 challenge             |
 | `code_challenge_method` | 固定为 `S256`                   |
+| `api_key_id`            | API 站按钮中选择的 Key ID       |
 
-API 端必须验证登录用户、`client_id`、回调地址和 scope。授权成功后生成至少 256 bit 随机 code，只保存 code 哈希，并记录用户、PKCE challenge、回调地址、scope、创建时间、使用状态。code 在 60 秒后失效且只能原子消费一次。
+API 端必须验证登录用户、`client_id`、回调地址、scope 与 `api_key_id` 的用户归属和可用状态。授权成功后生成至少 256 bit 随机 code，只保存 code 哈希，并记录用户、Key ID、PKCE challenge、回调地址、scope、创建时间、使用状态。code 在 60 秒后失效且只能原子消费一次。
 
 成功跳转：
 
@@ -184,3 +187,4 @@ token_type_hint=access_token
 5. API 平台主动撤销后，后续聊天请求立即失败且可重新绑定。
 6. OpenAI 与 Anthropic 均能用同一专用 Token 完成一次流式对话；不支持的 Provider 返回 `403`。
 7. URL、浏览器存储、Cloudflare 日志和两端应用日志中均不存在长期 Token。
+8. 缺失、重复、非规范或超出 int64 范围的 `api_key_id` 被对话站拒绝；其他用户、已删除、已禁用或授权后失效的 Key 被 API 站拒绝，且不能在兑换阶段换绑。

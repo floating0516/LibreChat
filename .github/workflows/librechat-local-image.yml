@@ -150,6 +150,8 @@ jobs:
               if (provider.initialModelsConfig.openAI.length !== 0) process.exit(1);
               if (provider.initialModelsConfig.anthropic.length !== 0) process.exit(1);
               if (typeof provider.liheTokenResponseSchema?.safeParse !== "function") process.exit(1);
+              if (!provider.liheStartRequestSchema.safeParse({ apiKeyId: "90" }).success) process.exit(1);
+              if (provider.liheStartRequestSchema.safeParse({ apiKeyId: "01" }).success) process.exit(1);
             '
 
           docker run --rm --network=none \

@@ -16,6 +16,7 @@ const SUPPORTED_PROVIDERS = new Set<TLiheProvider>([
 export type LiheConfig = {
   apiBaseUrl: URL;
   authorizationUrl: URL;
+  selectionUrl: URL;
   tokenUrl: URL;
   revokeUrl: URL;
   modelsUrl: URL;
@@ -110,6 +111,7 @@ export function getLiheConfig(): LiheConfig | null {
   return {
     apiBaseUrl,
     authorizationUrl: childUrl(apiBaseUrl, 'oauth/authorize'),
+    selectionUrl: childUrl(apiBaseUrl, 'integrations/lihe'),
     tokenUrl: childUrl(apiBaseUrl, 'oauth/token'),
     revokeUrl: childUrl(apiBaseUrl, 'oauth/revoke'),
     modelsUrl: childUrl(apiBaseUrl, 'v1/models'),

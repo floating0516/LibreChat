@@ -1,5 +1,6 @@
 import { tenantStorage, logger } from '@librechat/data-schemas';
 import { setOAuthCsrfCookie, validateOAuthCsrf, validateOAuthSession } from '~/oauth';
+import { liheStartRequestSchema } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import type { TLiheStartRequest, TLiheConnectionStatus } from 'librechat-data-provider';
 import type { FlowStateManager } from '~/flow/manager';
@@ -149,7 +150,11 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         userId,
         configuredProviders: config.providers,
       });
-      res.status(200).json({ enabled: true, ...connectionStatus });
+      res.status(200).json({
+        enabled: true,
+        selectionUrl: config.selectionUrl.href,
+        ...connectionStatus,
+      });
     } catch (error) {
       if (error instanceof LiheConfigurationError) {
         logger.error('[Lihe Connect] Invalid server configuration');
@@ -174,12 +179,18 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         return;
       }
 
+      const parsedRequest = liheStartRequestSchema.safeParse(req.body);
+      if (!parsedRequest.success) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+
       const connectionStatus = await getLiheConnectionStatus({
         deps,
         userId,
         configuredProviders: config.providers,
       });
-      const replaceExisting = req.body?.replaceExisting === true;
+      const { apiKeyId, replaceExisting = false } = parsedRequest.data;
       if (connectionStatus.connected && !replaceExisting) {
         res.status(409).json({ error: 'already_connected' });
         return;
@@ -207,6 +218,7 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         state,
         code_challenge: pkce.challenge,
         code_challenge_method: 'S256',
+        api_key_id: apiKeyId,
       }).toString();
       res.status(200).json({ authorizationUrl: authorizationUrl.href });
     } catch (error) {

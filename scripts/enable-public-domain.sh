@@ -34,5 +34,5 @@ replace_env_value SESSION_COOKIE_SECURE true
 replace_env_value TRUST_PROXY 1
 
 printf 'Configured LibreChat for https://%s. Restarting the API container...\n' "$domain"
-compose up -d --force-recreate api
+compose up -d --no-deps --force-recreate api
 "$ROOT_DIR/scripts/healthcheck.sh"
