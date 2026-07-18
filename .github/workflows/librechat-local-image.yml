@@ -184,7 +184,7 @@ jobs:
               if (!api.shouldRequireLiheOpenIdSubject({ requireOpenIdSubject: false }, { email: "allowed@example.invalid", emailVerified: true })) process.exit(1);
             '
 
-          docker run --rm --network=none \
+          timeout 30s docker run --rm --network=none \
             --workdir /app/api \
             --entrypoint node \
             "$image_ref" \
@@ -209,6 +209,7 @@ jobs:
                 const clientId = decodeURIComponent(credentials.slice(0, separator));
                 const decodedSecret = decodeURIComponent(credentials.slice(separator + 1));
                 if (clientId !== "lihe-chat-login" || decodedSecret !== clientSecret) process.exit(1);
+                process.exit(0);
               }).catch(() => process.exit(1));
             '
 
