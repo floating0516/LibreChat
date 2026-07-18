@@ -10,8 +10,8 @@ const {
   createSetBalanceConfig,
   getOAuthFailureMessage,
   hasOpenIdAccountLinkIntent,
-  isEnabled,
-  isOpenIdAccountLinkingEnabled,
+  isOpenIdAccountLinkingConfigured,
+  isOpenIdLoginRuntimeEnabled,
   OPENID_LINK_RESULT_PATH,
   redirectToAuthFailure,
 } = require('@librechat/api');
@@ -62,14 +62,14 @@ const setOpenIDCallbackHeaders = (_req, res, next) => {
 };
 
 const requireOpenIDLoginEnabled = (_req, res, next) => {
-  if (!isEnabled(process.env.ALLOW_SOCIAL_LOGIN)) {
+  if (!isOpenIdLoginRuntimeEnabled()) {
     return redirectToAuthFailure(res, authFailureRedirectOptions);
   }
   next();
 };
 
 const requireOpenIDLinkIntent = (req, res, next) => {
-  if (!isOpenIdAccountLinkingEnabled() || !hasOpenIdAccountLinkIntent(req)) {
+  if (!isOpenIdAccountLinkingConfigured() || !hasOpenIdAccountLinkIntent(req)) {
     return res.redirect(`${openIdLinkResultUrl}?result=error`);
   }
   next();

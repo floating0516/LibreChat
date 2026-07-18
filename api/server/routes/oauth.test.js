@@ -51,7 +51,8 @@ const mockRedirectToAuthFailure = jest.fn((res, { clientDomain, authFailedError 
 );
 const mockPassportAuthenticate = jest.fn(() => (_req, _res, next) => next());
 const mockHasOpenIdAccountLinkIntent = jest.fn(() => false);
-const mockIsOpenIdAccountLinkingEnabled = jest.fn(() => false);
+const mockIsOpenIdAccountLinkingConfigured = jest.fn(() => false);
+const mockIsOpenIdLoginRuntimeEnabled = jest.fn(() => false);
 const mockIsEnabled = jest.fn((value) => value === 'true');
 
 jest.mock('passport', () => ({
@@ -80,7 +81,8 @@ jest.mock('@librechat/api', () => ({
   getOAuthFailureMessage: (...args) => mockGetOAuthFailureMessage(...args),
   hasOpenIdAccountLinkIntent: (...args) => mockHasOpenIdAccountLinkIntent(...args),
   isEnabled: (...args) => mockIsEnabled(...args),
-  isOpenIdAccountLinkingEnabled: (...args) => mockIsOpenIdAccountLinkingEnabled(...args),
+  isOpenIdAccountLinkingConfigured: (...args) => mockIsOpenIdAccountLinkingConfigured(...args),
+  isOpenIdLoginRuntimeEnabled: (...args) => mockIsOpenIdLoginRuntimeEnabled(...args),
   OPENID_LINK_RESULT_PATH: '/connect/lihe-account',
   redirectToAuthFailure: (...args) => mockRedirectToAuthFailure(...args),
 }));
@@ -150,7 +152,8 @@ describe('OAuth route failure logging', () => {
     mockRedirectToAuthFailure.mockClear();
     mockPassportAuthenticate.mockClear();
     mockHasOpenIdAccountLinkIntent.mockClear();
-    mockIsOpenIdAccountLinkingEnabled.mockClear();
+    mockIsOpenIdAccountLinkingConfigured.mockClear();
+    mockIsOpenIdLoginRuntimeEnabled.mockReset().mockReturnValue(true);
     mockIsEnabled.mockClear();
     mockOpenIDCallbackAuthenticatorOptions = {};
     process.env.ALLOW_SOCIAL_LOGIN = 'true';
@@ -181,6 +184,7 @@ describe('OAuth route failure logging', () => {
 
   it('enforces the social-login switch on both OpenID entry points', async () => {
     process.env.ALLOW_SOCIAL_LOGIN = 'false';
+    mockIsOpenIdLoginRuntimeEnabled.mockReturnValue(false);
     const app = createApp();
 
     const start = await request(app).get('/oauth/openid').expect(302);
@@ -198,6 +202,24 @@ describe('OAuth route failure logging', () => {
     expect(callback.headers['referrer-policy']).toBe('no-referrer');
     expect(mockPassportAuthenticate).not.toHaveBeenCalledWith('openid', expect.anything());
     expect(mockOpenIDCallbackMiddleware).not.toHaveBeenCalled();
+  });
+
+  it('allows OpenID routes while the hidden test runtime is enabled', async () => {
+    process.env.ALLOW_SOCIAL_LOGIN = 'false';
+    mockIsOpenIdLoginRuntimeEnabled.mockReturnValue(true);
+    mockPassportAuthenticate.mockImplementation(() => (_req, res) => res.status(204).end());
+    const app = createApp();
+
+    await request(app).get('/oauth/openid').expect(204);
+    await request(app)
+      .get('/oauth/openid/callback?code=secret-code&state=secret-state')
+      .expect(204);
+
+    expect(mockPassportAuthenticate).toHaveBeenCalledWith(
+      'openid',
+      expect.objectContaining({ session: false }),
+    );
+    expect(mockOpenIDCallbackMiddleware).toHaveBeenCalled();
   });
 
   it('logs structured fallback errors without using Unknown OAuth error', async () => {

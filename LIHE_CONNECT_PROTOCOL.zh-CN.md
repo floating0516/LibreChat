@@ -214,4 +214,6 @@ Discovery 至少声明 `response_types_supported=["code"]`、`grant_types_suppor
 
 第一阶段退出仅结束 LibreChat 本地会话，不调用 Provider Logout；LibreChat Refresh Session 最长 24 小时。API 端禁用账号后必须立即阻止新的 OIDC 授权和 Lihe Token 使用。
 
+正式开放前可使用服务器端隐藏联调模式：`ALLOW_SOCIAL_LOGIN=false`、`ALLOW_SOCIAL_REGISTRATION=false`，同时只为已验证的精确邮箱白名单初始化普通 OIDC 和账号绑定策略。匿名配置与登录页不得暴露按钮；绑定开始、绑定回调、普通登录回调和 Lihe `account_id/sub` 校验都必须再次执行同一白名单检查。隐藏模式不得启用管理后台 OIDC、其他社交登录或非白名单新用户注册，验收结束后必须清空白名单并关闭隐藏模式。
+
 生产切换必须同时满足：Discovery/JWKS 可用、两个回调地址精确登记、测试 Client Secret 通过 `client_secret_basic` 联调、历史用户绑定验收通过。随后才可启用 `ALLOW_SOCIAL_LOGIN=true`、`ALLOW_SOCIAL_REGISTRATION=true`、`OPENID_ACCOUNT_LINKING_ENABLED=true` 和 `LIHE_CONNECT_REQUIRE_OPENID_SUBJECT=true`；公开邮箱注册在迁移窗口结束后改为 `ALLOW_REGISTRATION=false`，OIDC 新用户注册仍由 `ALLOW_SOCIAL_REGISTRATION=true` 单独控制。

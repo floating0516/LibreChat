@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import type { LiheFetch } from './client';
 import type { LiheKeyDependencies } from './storage';
 import { FlowStateManager } from '~/flow/manager';
-import { createLiheHandlers } from './handlers';
+import { createLiheHandlers, shouldRequireLiheOpenIdSubject } from './handlers';
 
 describe('Lihe Connect handlers', () => {
   const originalEnv = { ...process.env };
@@ -24,6 +24,32 @@ describe('Lihe Connect handlers', () => {
 
   afterEach(() => {
     process.env = { ...originalEnv };
+  });
+
+  it('targets subject enforcement to the verified hidden-test account', () => {
+    process.env.ALLOW_SOCIAL_LOGIN = 'false';
+    process.env.OPENID_HIDDEN_TEST_MODE = 'true';
+    process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS = 'allowed@example.com';
+
+    expect(
+      shouldRequireLiheOpenIdSubject(
+        { requireOpenIdSubject: false },
+        { email: 'allowed@example.com', emailVerified: true },
+      ),
+    ).toBe(true);
+    expect(
+      shouldRequireLiheOpenIdSubject(
+        { requireOpenIdSubject: false },
+        { email: 'other@example.com', emailVerified: true },
+      ),
+    ).toBe(false);
+    expect(
+      shouldRequireLiheOpenIdSubject(
+        { requireOpenIdSubject: false },
+        { email: 'allowed@example.com', emailVerified: false },
+      ),
+    ).toBe(false);
+    expect(shouldRequireLiheOpenIdSubject({ requireOpenIdSubject: true }, undefined)).toBe(true);
   });
 
   it('completes the browser flow without exposing the long-lived token', async () => {
@@ -166,7 +192,7 @@ describe('Lihe Connect handlers', () => {
   it('requires and verifies the OIDC account subject in unified-account mode', async () => {
     process.env.LIHE_CONNECT_REQUIRE_OPENID_SUBJECT = 'true';
     const keys = new Map<string, { value: string; expiresAt: Date | null }>();
-    let currentOpenId: string | undefined;
+    const currentOpenId: { value?: string } = {};
     let returnedAccountId = 'another-account';
     let revocations = 0;
     const keyDeps: LiheKeyDependencies = {
@@ -222,8 +248,8 @@ describe('Lihe Connect handlers', () => {
       Object.assign(req, {
         user: {
           id: 'user-1',
-          openidId: currentOpenId,
-          openidIssuer: currentOpenId ? 'https://api.lihe.chat' : undefined,
+          openidId: currentOpenId.value,
+          openidIssuer: currentOpenId.value ? 'https://api.lihe.chat' : undefined,
         },
       });
       next();
@@ -239,7 +265,7 @@ describe('Lihe Connect handlers', () => {
     expect(unlinkedStart.status).toBe(409);
     expect(unlinkedStart.body).toEqual({ error: 'account_link_required' });
 
-    currentOpenId = 'api-account-subject';
+    currentOpenId.value = 'api-account-subject';
     const mismatchedStart = await agent
       .post('/api/integrations/lihe/start')
       .send({ apiKeyId: '90' });
@@ -252,7 +278,7 @@ describe('Lihe Connect handlers', () => {
     expect(keys.size).toBe(0);
     expect(revocations).toBe(1);
 
-    returnedAccountId = currentOpenId;
+    returnedAccountId = currentOpenId.value;
     const matchedStart = await agent.post('/api/integrations/lihe/start').send({ apiKeyId: '90' });
     const matchedUrl = new URL(matchedStart.body.authorizationUrl);
     const matchedCallback = await agent.get('/api/integrations/lihe/callback').query({

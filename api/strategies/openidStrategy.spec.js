@@ -260,8 +260,10 @@ describe('setupOpenId', () => {
     delete process.env.OPENID_GENERATE_NONCE;
     delete process.env.OPENID_TOKEN_ENDPOINT_AUTH_METHOD;
     delete process.env.OPENID_ACCOUNT_LINKING_ENABLED;
-    delete process.env.OPENID_SESSION_SECRET;
-    delete process.env.ALLOW_SOCIAL_LOGIN;
+    process.env.OPENID_SESSION_SECRET = 'fake-session-secret';
+    process.env.ALLOW_SOCIAL_LOGIN = 'true';
+    delete process.env.OPENID_HIDDEN_TEST_MODE;
+    delete process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS;
     process.env.ALLOW_SOCIAL_REGISTRATION = 'true';
     delete process.env.OPENID_ROLE_SYNC_ENABLED;
     delete process.env.OPENID_ROLE_SYNC_API_ENABLED;
@@ -430,6 +432,79 @@ describe('setupOpenId', () => {
         }),
       );
     });
+
+    it('registers regular and linking strategies without admin OIDC in hidden mode', async () => {
+      process.env.ALLOW_SOCIAL_LOGIN = 'false';
+      process.env.OPENID_HIDDEN_TEST_MODE = 'true';
+      process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS = 'test@example.com';
+      process.env.OPENID_ACCOUNT_LINKING_ENABLED = 'true';
+      process.env.OPENID_USE_PKCE = 'true';
+      const passport = require('passport');
+      passport.use.mockClear();
+
+      await setupOpenId({ includeAdmin: false });
+
+      expect(passport.use.mock.calls.map(([name]) => name)).toEqual(['openid', 'openidLink']);
+    });
+
+    it('uses verified UserInfo email for a hidden account-link callback', async () => {
+      process.env.ALLOW_SOCIAL_LOGIN = 'false';
+      process.env.OPENID_HIDDEN_TEST_MODE = 'true';
+      process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS = 'test@example.com';
+      process.env.OPENID_ACCOUNT_LINKING_ENABLED = 'true';
+      process.env.OPENID_USE_PKCE = 'true';
+      await setupOpenId({ includeAdmin: false });
+      const linkVerify = require('openid-client/passport').__getVerifyCallbackByName('openidLink');
+      require('openid-client').fetchUserInfo.mockResolvedValueOnce({
+        sub: '1234',
+        email: 'test@example.com',
+        email_verified: true,
+      });
+      const linkedUser = {
+        _id: 'existing-user',
+        id: 'existing-user',
+        email: 'test@example.com',
+        emailVerified: true,
+        openidId: '1234',
+        openidIssuer: 'https://fake-issuer.com',
+      };
+      require('~/models').linkOpenIdIdentity.mockResolvedValue({
+        status: 'linked',
+        user: linkedUser,
+      });
+      const request = {
+        session: {
+          librechatOpenIdLink: {
+            userId: 'existing-user',
+            expectedEmail: 'test@example.com',
+            returnTo: '/c/new',
+            createdAt: Date.now(),
+          },
+          save: (callback) => callback(),
+        },
+      };
+      const linkTokenset = {
+        access_token: 'link-access-token',
+        claims: () => ({ sub: '1234', iss: 'https://fake-issuer.com' }),
+      };
+
+      const result = await new Promise((resolve, reject) => {
+        linkVerify(request, linkTokenset, (error, user, details) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve({ user, details });
+        });
+      });
+
+      expect(result).toEqual({ user: linkedUser, details: undefined });
+      expect(require('openid-client').fetchUserInfo).toHaveBeenCalledWith(
+        expect.anything(),
+        'link-access-token',
+        '1234',
+      );
+    });
   });
 
   describe('authorizationRequestParams', () => {
@@ -500,6 +575,39 @@ describe('setupOpenId', () => {
     expect(result.details.message).toBe(ErrorTypes.AUTH_FAILED);
     expect(findUser).not.toHaveBeenCalled();
     expect(createUser).not.toHaveBeenCalled();
+  });
+
+  it('allows only the verified allowlisted identity in hidden test mode', async () => {
+    process.env.ALLOW_SOCIAL_LOGIN = 'false';
+    process.env.OPENID_HIDDEN_TEST_MODE = 'true';
+    process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS = 'test@example.com';
+    process.env.OPENID_SESSION_SECRET = 'hidden-session-secret';
+
+    const allowed = await validate(tokenset);
+    expect(allowed.user).toEqual(expect.objectContaining({ email: 'test@example.com' }));
+
+    jest.clearAllMocks();
+    const denied = await validate({
+      ...tokenset,
+      claims: () => ({
+        ...tokenset.claims(),
+        email: 'other@example.com',
+      }),
+    });
+    expect(denied.user).toBe(false);
+    expect(denied.details.message).toBe(ErrorTypes.AUTH_FAILED);
+    expect(findUser).not.toHaveBeenCalled();
+    expect(createUser).not.toHaveBeenCalled();
+
+    const unverified = await validate({
+      ...tokenset,
+      claims: () => ({
+        ...tokenset.claims(),
+        email_verified: false,
+      }),
+    });
+    expect(unverified.user).toBe(false);
+    expect(unverified.details.message).toBe(ErrorTypes.AUTH_FAILED);
   });
 
   it('does not create an OpenID user when social registration is disabled', async () => {

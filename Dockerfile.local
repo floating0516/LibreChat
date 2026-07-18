@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.8
+ARG LIBRECHAT_VERSION=v0.8.7.9
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -17,6 +17,7 @@ COPY --chown=node:node api/server/routes/auth.js /app/api/server/routes/auth.js
 COPY --chown=node:node api/server/routes/config.js /app/api/server/routes/config.js
 COPY --chown=node:node api/server/routes/oauth.js /app/api/server/routes/oauth.js
 COPY --chown=node:node api/server/routes/index.js /app/api/server/routes/index.js
+COPY --chown=node:node api/server/socialLogins.js /app/api/server/socialLogins.js
 COPY --chown=node:node api/server/controllers/UserController.js /app/api/server/controllers/UserController.js
 COPY --chown=node:node api/strategies/openidStrategy.js /app/api/strategies/openidStrategy.js
 COPY --chown=node:node api/server/index.js /app/api/server/index.js
@@ -25,6 +26,7 @@ COPY --chown=node:node packages/api/src/endpoints/models.ts /app/packages/api/sr
 COPY --chown=node:node packages/api/src/endpoints/config/models.ts /app/packages/api/src/endpoints/config/models.ts
 COPY --chown=node:node packages/api/src/index.ts /app/packages/api/src/index.ts
 COPY --chown=node:node packages/api/src/auth/index.ts /app/packages/api/src/auth/index.ts
+COPY --chown=node:node packages/api/src/auth/openidAccess.ts /app/packages/api/src/auth/openidAccess.ts
 COPY --chown=node:node packages/api/src/auth/link.ts /app/packages/api/src/auth/link.ts
 COPY --chown=node:node packages/api/src/lihe/client.ts /app/packages/api/src/lihe/client.ts
 COPY --chown=node:node packages/api/src/lihe/config.ts /app/packages/api/src/lihe/config.ts

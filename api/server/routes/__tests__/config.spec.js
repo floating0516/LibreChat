@@ -66,6 +66,8 @@ const mockUser = {
   id: 'user123',
   role: 'USER',
   tenantId: undefined,
+  email: 'allowed@example.com',
+  emailVerified: true,
 };
 
 afterEach(() => {
@@ -95,6 +97,8 @@ afterEach(() => {
   delete process.env.OPENID_SCOPE;
   delete process.env.OPENID_USE_PKCE;
   delete process.env.OPENID_ACCOUNT_LINKING_ENABLED;
+  delete process.env.OPENID_HIDDEN_TEST_MODE;
+  delete process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS;
   delete process.env.GITHUB_CLIENT_ID;
   delete process.env.GITHUB_CLIENT_SECRET;
   delete process.env.DISCORD_CLIENT_ID;
@@ -420,6 +424,33 @@ describe('GET /api/config', () => {
 
       expect(authenticated.body.openidAccountLinkingEnabled).toBe(true);
       expect(anonymous.body).not.toHaveProperty('openidAccountLinkingEnabled');
+    });
+
+    it('advertises hidden account linking only to the verified allowlisted user', async () => {
+      process.env.OPENID_ACCOUNT_LINKING_ENABLED = 'true';
+      process.env.ALLOW_SOCIAL_LOGIN = 'false';
+      process.env.OPENID_HIDDEN_TEST_MODE = 'true';
+      process.env.OPENID_HIDDEN_TEST_ALLOWED_EMAILS = 'allowed@example.com';
+      process.env.OPENID_CLIENT_ID = 'lihe-chat-login';
+      process.env.OPENID_CLIENT_SECRET = 'client-secret';
+      process.env.OPENID_ISSUER = 'https://api.lihe.chat';
+      process.env.OPENID_SCOPE = 'openid profile email';
+      process.env.OPENID_SESSION_SECRET = 'session-secret';
+      mockGetAppConfig.mockResolvedValue(baseAppConfig);
+
+      const allowed = await request(createApp(mockUser)).get('/api/config');
+      const denied = await request(
+        createApp({ ...mockUser, id: 'user456', email: 'other@example.com' }),
+      ).get('/api/config');
+      const anonymous = await request(createApp(null)).get('/api/config');
+
+      expect(allowed.body.openidAccountLinkingEnabled).toBe(true);
+      expect(allowed.body.openidLoginEnabled).toBe(false);
+      expect(allowed.body.socialLoginEnabled).toBe(false);
+      expect(denied.body.openidAccountLinkingEnabled).toBe(false);
+      expect(anonymous.body.openidLoginEnabled).toBe(false);
+      expect(JSON.stringify(allowed.body)).not.toContain('allowed@example.com');
+      expect(JSON.stringify(anonymous.body)).not.toContain('allowed@example.com');
     });
 
     it('should advertise CloudFront cookie refresh when signed-cookie mode is active', async () => {

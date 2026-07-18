@@ -5,6 +5,13 @@ import type { OpenIdEmailClaims, OpenIdIssuerSource } from './openid';
 import { isEnabled } from '~/utils/common';
 import { getBasePath } from '~/utils/path';
 import { getOpenIdIssuer } from './openid';
+import {
+  isOpenIdHiddenTestEmailAllowed,
+  isOpenIdHiddenTestModeEnabled,
+  isOpenIdHiddenTestUserAllowed,
+  isOpenIdLoginRuntimeEnabled,
+  normalizeOpenIdAccessEmail,
+} from './openidAccess';
 
 export const OPENID_LINK_START_PATH = '/oauth/openid/link';
 export const OPENID_LINK_CALLBACK_PATH = '/oauth/openid/link/callback';
@@ -15,9 +22,17 @@ const OPENID_LINK_MAX_AGE_MS = 10 * 60 * 1000;
 const MAX_RETURN_TO_LENGTH = 2048;
 const LOGIN_PATH_RE = /(?:^|\/)login(?:\/|$)/;
 
+function hasControlCharacter(value: string): boolean {
+  return [...value].some((character) => {
+    const codePoint = character.codePointAt(0);
+    return codePoint != null && (codePoint <= 0x1f || codePoint === 0x7f);
+  });
+}
+
 type OpenIdLinkIntent = {
   userId: string;
   tenantId?: string;
+  expectedEmail?: string;
   returnTo: string;
   createdAt: number;
 };
@@ -29,6 +44,8 @@ type OpenIdLinkSession = Request['session'] & {
 type OpenIdLinkUser = {
   id?: string;
   tenantId?: string;
+  email?: string;
+  emailVerified?: boolean;
 };
 
 type OpenIdLinkRequest = Request & {
@@ -60,18 +77,18 @@ export class OpenIdLinkError extends Error {
   }
 }
 
-export function isOpenIdAccountLinkingEnabled(): boolean {
-  const hasClientAuthentication =
-    isEnabled(process.env.OPENID_USE_PKCE) || !!process.env.OPENID_CLIENT_SECRET?.trim();
-  return (
-    isEnabled(process.env.OPENID_ACCOUNT_LINKING_ENABLED) &&
-    isEnabled(process.env.ALLOW_SOCIAL_LOGIN) &&
-    !!process.env.OPENID_CLIENT_ID?.trim() &&
-    hasClientAuthentication &&
-    !!process.env.OPENID_ISSUER?.trim() &&
-    !!process.env.OPENID_SCOPE?.trim() &&
-    !!process.env.OPENID_SESSION_SECRET?.trim()
-  );
+export function isOpenIdAccountLinkingConfigured(): boolean {
+  return isEnabled(process.env.OPENID_ACCOUNT_LINKING_ENABLED) && isOpenIdLoginRuntimeEnabled();
+}
+
+export function isOpenIdAccountLinkingEnabled(user?: OpenIdLinkUser | null): boolean {
+  if (!isOpenIdAccountLinkingConfigured()) {
+    return false;
+  }
+  if (!isOpenIdHiddenTestModeEnabled()) {
+    return true;
+  }
+  return isOpenIdHiddenTestUserAllowed(user);
 }
 
 export function isSafeOpenIdLinkReturnTo(value: string): boolean {
@@ -80,7 +97,7 @@ export function isSafeOpenIdLinkReturnTo(value: string): boolean {
     value.startsWith('//') ||
     value.includes('\\') ||
     value.length > MAX_RETURN_TO_LENGTH ||
-    /[\u0000-\u001f\u007f]/.test(value)
+    hasControlCharacter(value)
   ) {
     return false;
   }
@@ -101,6 +118,8 @@ function getLinkIntent(req: Request): OpenIdLinkIntent | null {
     typeof intent.userId !== 'string' ||
     !intent.userId ||
     (intent.tenantId != null && typeof intent.tenantId !== 'string') ||
+    (intent.expectedEmail != null &&
+      normalizeOpenIdAccessEmail(intent.expectedEmail) !== intent.expectedEmail) ||
     typeof intent.createdAt !== 'number' ||
     !Number.isFinite(intent.createdAt) ||
     typeof intent.returnTo !== 'string' ||
@@ -134,7 +153,7 @@ export function createOpenIdLinkStartHandler({
   getUserById,
 }: Pick<UserMethods, 'getUserById'>): (req: OpenIdLinkRequest, res: Response) => Promise<void> {
   return async (req: OpenIdLinkRequest, res: Response): Promise<void> => {
-    if (!isOpenIdAccountLinkingEnabled() || !req.session) {
+    if (!isOpenIdAccountLinkingConfigured() || !req.session) {
       res.status(404).json({ error: 'feature_disabled' });
       return;
     }
@@ -155,9 +174,13 @@ export function createOpenIdLinkStartHandler({
       return;
     }
 
-    const user = await getUserById(userId, '_id openidId tenantId');
+    const user = await getUserById(userId, '_id openidId tenantId email emailVerified');
     if (!user) {
       res.status(404).json({ error: 'user_not_found' });
+      return;
+    }
+    if (!isOpenIdAccountLinkingEnabled(user)) {
+      res.status(404).json({ error: 'feature_disabled' });
       return;
     }
     if (user.openidId) {
@@ -165,9 +188,13 @@ export function createOpenIdLinkStartHandler({
       return;
     }
 
+    const expectedEmail = isOpenIdHiddenTestModeEnabled()
+      ? normalizeOpenIdAccessEmail(user.email)
+      : null;
     req.session[OPENID_LINK_SESSION_KEY] = {
       userId,
       tenantId: user.tenantId,
+      ...(expectedEmail ? { expectedEmail } : {}),
       returnTo,
       createdAt: Date.now(),
     };
@@ -176,6 +203,23 @@ export function createOpenIdLinkStartHandler({
       authorizationUrl: `${getBasePath()}${OPENID_LINK_START_PATH}`,
     });
   };
+}
+
+export function assertOpenIdLinkIdentityAllowed(req: Request, tokenset: OpenIdTokenSet): void {
+  if (!isOpenIdHiddenTestModeEnabled()) {
+    return;
+  }
+  const intent = getLinkIntent(req);
+  const claims = tokenset.claims();
+  const email = normalizeOpenIdAccessEmail(claims.email);
+  if (
+    !intent?.expectedEmail ||
+    claims.email_verified !== true ||
+    email !== intent.expectedEmail ||
+    !isOpenIdHiddenTestEmailAllowed(email)
+  ) {
+    throw new OpenIdLinkError('link_unavailable');
+  }
 }
 
 export function resolveOpenIdLinkIdentity(
@@ -205,7 +249,7 @@ export async function completeOpenIdAccountLink({
   openidIssuer: string;
   linkOpenIdIdentity: OpenIdIdentityMethods['linkOpenIdIdentity'];
 }): Promise<{ user: IUser; returnTo: string }> {
-  if (!isOpenIdAccountLinkingEnabled()) {
+  if (!isOpenIdAccountLinkingConfigured()) {
     throw new OpenIdLinkError('link_unavailable');
   }
 

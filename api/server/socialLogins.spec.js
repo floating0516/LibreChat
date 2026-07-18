@@ -65,6 +65,7 @@ jest.mock('~/strategies', () => ({
 }));
 
 const configureSocialLogins = require('./socialLogins');
+const { configureOpenId } = configureSocialLogins;
 
 describe('configureSocialLogins OpenID session expiry', () => {
   const ORIGINAL_ENV = process.env;
@@ -139,5 +140,14 @@ describe('configureSocialLogins OpenID session expiry', () => {
       }),
     );
     expect(mockPassportUse).not.toHaveBeenCalled();
+  });
+
+  it('can initialize only OpenID without registering the admin strategy', async () => {
+    const app = { use: jest.fn() };
+
+    await configureOpenId(app, { includeAdmin: false });
+
+    expect(mockSetupOpenId).toHaveBeenCalledWith({ includeAdmin: false });
+    expect(mockSetupSaml).not.toHaveBeenCalled();
   });
 });

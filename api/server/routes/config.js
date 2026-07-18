@@ -8,6 +8,7 @@ const {
   sanitizeModelSpecs,
   isFileSnapshotEnabled,
   isOpenIdAccountLinkingEnabled,
+  isOpenIdPublicLoginEnabled,
 } = require('@librechat/api');
 const { EModelEndpoint, defaultSocialLogins } = require('librechat-data-provider');
 const { logger, getTenantId, SystemCapabilities } = require('@librechat/data-schemas');
@@ -50,11 +51,7 @@ function isBirthday() {
  * See client consumers under `client/src/components/Auth/` and `client/src/routes/Layouts/Startup.tsx`.
  */
 function buildPreLoginPayload() {
-  const isOpenIdEnabled =
-    !!process.env.OPENID_CLIENT_ID &&
-    (isEnabled(process.env.OPENID_USE_PKCE) || !!process.env.OPENID_CLIENT_SECRET?.trim()) &&
-    !!process.env.OPENID_ISSUER &&
-    !!process.env.OPENID_SESSION_SECRET;
+  const isOpenIdEnabled = isOpenIdPublicLoginEnabled();
 
   const isSamlEnabled =
     !!process.env.SAML_ENTRY_POINT &&
@@ -79,7 +76,7 @@ function buildPreLoginPayload() {
     openidLoginEnabled: isOpenIdEnabled,
     openidLabel: process.env.OPENID_BUTTON_LABEL || 'Continue with OpenID',
     openidImageUrl: process.env.OPENID_IMAGE_URL,
-    openidAutoRedirect: isEnabled(process.env.OPENID_AUTO_REDIRECT),
+    openidAutoRedirect: isOpenIdEnabled && isEnabled(process.env.OPENID_AUTO_REDIRECT),
     samlLoginEnabled: !isOpenIdEnabled && isSamlEnabled,
     samlLabel: process.env.SAML_BUTTON_LABEL,
     samlImageUrl: process.env.SAML_IMAGE_URL,
@@ -131,7 +128,7 @@ function buildPublicSharePayload() {
  * openid token-reuse marker) and are not needed on the pre-login screens, so they
  * are not exposed to unauthenticated callers.
  */
-function buildPostLoginPayload() {
+function buildPostLoginPayload(user) {
   /** @type {Partial<TStartupConfig>} */
   const payload = {
     showBirthdayIcon:
@@ -142,7 +139,7 @@ function buildPostLoginPayload() {
     sharedLinksEnabled,
     publicSharedLinksEnabled,
     openidReuseTokens,
-    openidAccountLinkingEnabled: isOpenIdAccountLinkingEnabled(),
+    openidAccountLinkingEnabled: isOpenIdAccountLinkingEnabled(user),
     /** Read inline (not module-level) for per-request evaluation and test isolation */
     allowAccountDeletion:
       process.env.ALLOW_ACCOUNT_DELETION === undefined ||
@@ -258,7 +255,7 @@ router.get('/', async function (req, res) {
     const payload = {
       ...preLoginPayload,
       ...publicSharePayload,
-      ...buildPostLoginPayload(),
+      ...buildPostLoginPayload(req.user),
       sharedLinksSnapshotFilesEnabled: sharedLinksEnabled && isFileSnapshotEnabled(appConfig),
       socialLogins: appConfig?.registration?.socialLogins ?? defaultSocialLogins,
       interface: appConfig?.interfaceConfig,

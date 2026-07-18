@@ -12,6 +12,8 @@ const mongoSanitize = require('express-mongo-sanitize');
 const { logger, runAsSystem } = require('@librechat/data-schemas');
 const {
   isEnabled,
+  isOpenIdHiddenTestModeEnabled,
+  isOpenIdLoginRuntimeEnabled,
   apiNotFound,
   createMetrics,
   ErrorController,
@@ -210,8 +212,13 @@ const startServer = async () => {
     app.use(telemetry.telemetryMiddleware);
   }
 
-  if (!ALLOW_SOCIAL_LOGIN) {
-    console.warn('Social logins are disabled. Set ALLOW_SOCIAL_LOGIN=true to enable them.');
+  const socialLoginEnabled = isEnabled(ALLOW_SOCIAL_LOGIN);
+  if (!socialLoginEnabled) {
+    if (isOpenIdHiddenTestModeEnabled()) {
+      logger.warn('Public social logins are disabled; hidden OpenID test mode is active.');
+    } else {
+      console.warn('Social logins are disabled. Set ALLOW_SOCIAL_LOGIN=true to enable them.');
+    }
   }
 
   /* OAUTH */
@@ -224,8 +231,10 @@ const startServer = async () => {
     passport.use(ldapLogin);
   }
 
-  if (isEnabled(ALLOW_SOCIAL_LOGIN)) {
+  if (socialLoginEnabled) {
     await configureSocialLogins(app);
+  } else if (isOpenIdLoginRuntimeEnabled()) {
+    await configureSocialLogins.configureOpenId(app, { includeAdmin: false });
   }
 
   /* Per-request capability cache — must be registered before any route that calls hasCapability */

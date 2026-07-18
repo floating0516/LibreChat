@@ -7,6 +7,7 @@ import type { FlowStateManager } from '~/flow/manager';
 import type { LiheKeyDependencies } from './storage';
 import type { LiheFetch } from './client';
 import type { LiheConfig } from './config';
+import { isOpenIdHiddenTestUserAllowed } from '~/auth/openidAccess';
 import {
   loadLiheConnection,
   saveLiheConnection,
@@ -27,6 +28,8 @@ type LiheUser = {
   tenantId?: string;
   openidId?: string;
   openidIssuer?: string;
+  email?: string;
+  emailVerified?: boolean;
 };
 
 interface LiheAuthenticatedRequest extends Request {
@@ -139,6 +142,13 @@ function hasExactScopes(granted: string, required: string): boolean {
   );
 }
 
+export function shouldRequireLiheOpenIdSubject(
+  config: Pick<LiheConfig, 'requireOpenIdSubject'>,
+  user: LiheUser | null | undefined,
+): boolean {
+  return config.requireOpenIdSubject || isOpenIdHiddenTestUserAllowed(user);
+}
+
 export function createLiheHandlers(deps: LiheHandlerDependencies): {
   status: (req: LiheAuthenticatedRequest, res: Response) => Promise<void>;
   start: (req: LiheAuthenticatedRequest, res: Response) => Promise<void>;
@@ -159,16 +169,17 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
       }
       const linkedAccountId =
         req.user?.openidId && req.user?.openidIssuer ? req.user.openidId : undefined;
+      const requireOpenIdSubject = shouldRequireLiheOpenIdSubject(config, req.user);
       const connectionStatus = await getLiheConnectionStatus({
         deps,
         userId,
         configuredProviders: config.providers,
-        expectedAccountId: config.requireOpenIdSubject ? linkedAccountId : undefined,
+        expectedAccountId: requireOpenIdSubject ? linkedAccountId : undefined,
       });
       res.status(200).json({
         enabled: true,
         selectionUrl: config.selectionUrl.href,
-        requiresAccountLink: config.requireOpenIdSubject && !linkedAccountId,
+        requiresAccountLink: requireOpenIdSubject && !linkedAccountId,
         ...connectionStatus,
       });
     } catch (error) {
@@ -196,11 +207,12 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
       }
       const linkedAccountId =
         req.user?.openidId && req.user?.openidIssuer ? req.user.openidId : undefined;
-      if (config.requireOpenIdSubject && !linkedAccountId) {
+      const requireOpenIdSubject = shouldRequireLiheOpenIdSubject(config, req.user);
+      if (requireOpenIdSubject && !linkedAccountId) {
         res.status(409).json({ error: 'account_link_required' });
         return;
       }
-      const expectedAccountId = config.requireOpenIdSubject ? linkedAccountId : undefined;
+      const expectedAccountId = requireOpenIdSubject ? linkedAccountId : undefined;
 
       const parsedRequest = liheStartRequestSchema.safeParse(req.body);
       if (!parsedRequest.success) {

@@ -27,8 +27,11 @@ const {
   sanitizeOpenIdUrlForLogging,
   OpenIdLinkError,
   OPENID_LINK_CALLBACK_PATH,
+  assertOpenIdLinkIdentityAllowed,
   completeOpenIdAccountLink,
-  isOpenIdAccountLinkingEnabled,
+  isOpenIdAccountLinkingConfigured,
+  isOpenIdHiddenTestModeEnabled,
+  isOpenIdLoginUserAllowed,
   resolveOpenIdLinkIdentity,
 } = require('@librechat/api');
 const { getStrategyFunctions } = require('~/server/services/Files/strategies');
@@ -588,6 +591,11 @@ async function processOpenIDAuth(tokenset, existingUsersOnly = false) {
   const openidIssuer = getOpenIdIssuer(claims, openidConfig);
   const openidId = claims.sub || userinfo.sub;
 
+  if (!isOpenIdLoginUserAllowed(email, emailVerified)) {
+    logger.warn('[OpenID Strategy] Authentication blocked by the hidden test access policy');
+    throw new Error(ErrorTypes.AUTH_FAILED);
+  }
+
   if (typeof openidId !== 'string' || !openidId || !openidIssuer) {
     throw new Error(ErrorTypes.AUTH_FAILED);
   }
@@ -891,10 +899,24 @@ function createOpenIDCallback(existingUsersOnly) {
   };
 }
 
+async function getOpenIdLinkIdentityTokenset(config, tokenset) {
+  if (!isOpenIdHiddenTestModeEnabled() || !tokenset.access_token) {
+    return tokenset;
+  }
+  const claims = tokenset.claims();
+  const providerUserinfo = await getUserInfo(config, tokenset.access_token, claims.sub);
+  return {
+    ...tokenset,
+    claims: () => ({ ...claims, ...providerUserinfo }),
+  };
+}
+
 function createOpenIDLinkCallback(config) {
   return async (req, tokenset, done) => {
     try {
-      const identity = resolveOpenIdLinkIdentity(tokenset, config);
+      const identityTokenset = await getOpenIdLinkIdentityTokenset(config, tokenset);
+      assertOpenIdLinkIdentityAllowed(req, identityTokenset);
+      const identity = resolveOpenIdLinkIdentity(identityTokenset, config);
       const result = await completeOpenIdAccountLink({
         req,
         ...identity,
@@ -941,7 +963,7 @@ const setupOpenIdAdmin = (openidConfig) => {
 };
 
 const setupOpenIdLink = (config, usePKCE) => {
-  if (!isOpenIdAccountLinkingEnabled()) {
+  if (!isOpenIdAccountLinkingConfigured()) {
     return;
   }
 
@@ -971,7 +993,7 @@ const setupOpenIdLink = (config, usePKCE) => {
  * @returns {Promise<Configuration | null>} A promise that resolves when the OpenID strategy is set up and returns the openid client config object.
  * @throws {Error} If an error occurs during the setup process.
  */
-async function setupOpenId() {
+async function setupOpenId({ includeAdmin = true } = {}) {
   try {
     const usePKCE = isEnabled(process.env.OPENID_USE_PKCE);
     const shouldGenerateNonce = isEnabled(process.env.OPENID_GENERATE_NONCE);
@@ -1028,7 +1050,9 @@ async function setupOpenId() {
     );
     passport.use('openid', openidLogin);
     setupOpenIdLink(openidConfig, usePKCE);
-    setupOpenIdAdmin(openidConfig);
+    if (includeAdmin) {
+      setupOpenIdAdmin(openidConfig);
+    }
     return openidConfig;
   } catch (err) {
     logger.error('[openidStrategy]', err);

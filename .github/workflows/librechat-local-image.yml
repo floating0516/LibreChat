@@ -162,9 +162,26 @@ jobs:
               const api = require("/app/packages/api/dist/index.cjs");
               if (typeof api.createLiheHandlers !== "function") process.exit(1);
               if (typeof api.verifyLiheState !== "function") process.exit(1);
-              if (typeof api.createOpenIdLinkStartHandler !== "function") process.exit(1);
+              for (const name of ["createOpenIdLinkStartHandler", "isOpenIdLoginRuntimeEnabled", "isOpenIdHiddenTestUserAllowed", "shouldRequireLiheOpenIdSubject"]) {
+                if (typeof api[name] !== "function") process.exit(1);
+              }
               if (typeof api.resolveOpenIDTokenEndpointAuthMethod !== "function") process.exit(1);
               if (api.resolveOpenIDTokenEndpointAuthMethod({ configuredMethod: "client_secret_basic", clientSecret: "synthetic", usePKCE: true, generateNonce: true }) !== "client_secret_basic") process.exit(1);
+              Object.assign(process.env, {
+                ALLOW_SOCIAL_LOGIN: "false",
+                OPENID_HIDDEN_TEST_MODE: "true",
+                OPENID_HIDDEN_TEST_ALLOWED_EMAILS: "allowed@example.invalid",
+                OPENID_CLIENT_ID: "lihe-chat-login",
+                OPENID_CLIENT_SECRET: "synthetic-client-secret",
+                OPENID_ISSUER: "https://api.lihe.invalid",
+                OPENID_SCOPE: "openid profile email",
+                OPENID_SESSION_SECRET: "synthetic-session-secret",
+                OPENID_USE_PKCE: "true",
+              });
+              if (!api.isOpenIdLoginRuntimeEnabled()) process.exit(1);
+              if (!api.isOpenIdHiddenTestUserAllowed({ email: "ALLOWED@example.invalid", emailVerified: true })) process.exit(1);
+              if (api.isOpenIdHiddenTestUserAllowed({ email: "other@example.invalid", emailVerified: true })) process.exit(1);
+              if (!api.shouldRequireLiheOpenIdSubject({ requireOpenIdSubject: false }, { email: "allowed@example.invalid", emailVerified: true })) process.exit(1);
             '
 
           docker run --rm --network=none \
@@ -193,6 +210,7 @@ jobs:
               test -f /app/packages/api/dist/index.cjs
               test -f /app/packages/data-schemas/dist/index.cjs
               test -f /app/api/server/routes/lihe.js
+              test -f /app/api/server/socialLogins.js
               test ! -e /tmp/librechat-build
               test ! -e /tmp/librechat-patches
               test ! -L /app/client/node_modules/vite

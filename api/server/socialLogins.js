@@ -42,7 +42,7 @@ const getOpenIdSessionExpiry = () => {
  * @param {Express.Application} app - The Express application instance.
  * @returns {Promise<void>}
  */
-async function configureOpenId(app) {
+async function configureOpenId(app, { includeAdmin = true } = {}) {
   logger.info('Configuring OpenID Connect...');
   const sessionExpiry = getOpenIdSessionExpiry();
   const sessionOptions = {
@@ -58,7 +58,7 @@ async function configureOpenId(app) {
   app.use(session(sessionOptions));
   app.use(passport.session());
 
-  const config = await setupOpenId();
+  const config = await setupOpenId({ includeAdmin });
   if (!config) {
     logger.error('OpenID Connect configuration failed - strategy not registered.');
     return;
@@ -134,3 +134,4 @@ const configureSocialLogins = async (app) => {
 };
 
 module.exports = configureSocialLogins;
+module.exports.configureOpenId = configureOpenId;

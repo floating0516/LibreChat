@@ -1,5 +1,6 @@
 export * from './domain';
 export * from './openid';
+export * from './openidAccess';
 export * from './link';
 export * from './proxy';
 export * from './exchange';

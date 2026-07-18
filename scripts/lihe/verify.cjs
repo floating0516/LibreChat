@@ -124,6 +124,32 @@ async function verify() {
     DOMAIN_SERVER: 'https://lihe.invalid',
     SESSION_COOKIE_SECURE: 'false',
   });
+  Object.assign(process.env, {
+    ALLOW_SOCIAL_LOGIN: 'false',
+    OPENID_HIDDEN_TEST_MODE: 'true',
+    OPENID_HIDDEN_TEST_ALLOWED_EMAILS: 'allowed@example.invalid',
+    OPENID_CLIENT_ID: 'lihe-chat-login',
+    OPENID_CLIENT_SECRET: 'synthetic-openid-client-secret',
+    OPENID_ISSUER: 'https://api.lihe.invalid',
+    OPENID_SCOPE: 'openid profile email',
+    OPENID_SESSION_SECRET: 'synthetic-openid-session-secret',
+    OPENID_USE_PKCE: 'true',
+  });
+  assert.equal(api.isOpenIdLoginRuntimeEnabled(), true);
+  assert.equal(
+    api.isOpenIdHiddenTestUserAllowed({
+      email: 'ALLOWED@example.invalid',
+      emailVerified: true,
+    }),
+    true,
+  );
+  assert.equal(
+    api.shouldRequireLiheOpenIdSubject(
+      { requireOpenIdSubject: false },
+      { email: 'allowed@example.invalid', emailVerified: true },
+    ),
+    true,
+  );
   const flowManager = {
     initFlow: async () => undefined,
     getFlowState: async () => null,
