@@ -983,6 +983,19 @@ const setupOpenIdLink = (config, usePKCE) => {
   passport.use('openidLink', openidLink);
 };
 
+const createOpenIDClientAuthentication = (method, clientSecret) => {
+  switch (method) {
+    case 'client_secret_basic':
+      return client.ClientSecretBasic(clientSecret);
+    case 'client_secret_post':
+      return client.ClientSecretPost(clientSecret);
+    case 'none':
+      return client.None();
+    default:
+      return undefined;
+  }
+};
+
 /**
  * Sets up the OpenID strategy for authentication.
  * This function configures the OpenID client, handles proxy settings,
@@ -1012,6 +1025,10 @@ async function setupOpenId({ includeAdmin = true } = {}) {
       usePKCE,
       generateNonce: shouldGenerateNonce,
     });
+    const clientAuthentication = createOpenIDClientAuthentication(
+      tokenEndpointAuthMethod,
+      clientSecret,
+    );
 
     if (clientSecret) {
       clientMetadata.client_secret = clientSecret;
@@ -1025,7 +1042,7 @@ async function setupOpenId({ includeAdmin = true } = {}) {
       new URL(process.env.OPENID_ISSUER),
       process.env.OPENID_CLIENT_ID,
       clientMetadata,
-      undefined,
+      clientAuthentication,
       {
         [client.customFetch]: customFetch,
       },
@@ -1075,6 +1092,7 @@ function getOpenIdConfig() {
 
 module.exports = {
   setupOpenId,
+  createOpenIDClientAuthentication,
   getOpenIdConfig,
   getOpenIdEmail,
   getRoleSource,

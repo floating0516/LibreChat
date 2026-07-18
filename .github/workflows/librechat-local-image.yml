@@ -185,6 +185,34 @@ jobs:
             '
 
           docker run --rm --network=none \
+            --workdir /app/api \
+            --entrypoint node \
+            "$image_ref" \
+            -e '
+              require("module-alias").addAlias("~", process.cwd());
+              const strategy = require("./strategies/openidStrategy.js");
+              const clientSecret = "synthetic-client-secret";
+              const auth = strategy.createOpenIDClientAuthentication("client_secret_basic", clientSecret);
+              const body = new URLSearchParams({ grant_type: "authorization_code", code: "synthetic-code" });
+              const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
+              Promise.resolve(auth(
+                { issuer: "https://issuer.invalid", token_endpoint: "https://issuer.invalid/token" },
+                { client_id: "lihe-chat-login", client_secret: clientSecret },
+                body,
+                headers,
+              )).then(() => {
+                const authorization = headers.get("authorization");
+                if (!authorization?.startsWith("Basic ")) process.exit(1);
+                if (body.has("client_id") || body.has("client_secret")) process.exit(1);
+                const credentials = Buffer.from(authorization.slice(6), "base64").toString("utf8");
+                const separator = credentials.indexOf(":");
+                const clientId = decodeURIComponent(credentials.slice(0, separator));
+                const decodedSecret = decodeURIComponent(credentials.slice(separator + 1));
+                if (clientId !== "lihe-chat-login" || decodedSecret !== clientSecret) process.exit(1);
+              }).catch(() => process.exit(1));
+            '
+
+          docker run --rm --network=none \
             --entrypoint node \
             "$image_ref" \
             -e '

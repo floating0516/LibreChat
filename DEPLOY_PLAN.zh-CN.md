@@ -1,6 +1,6 @@
 # LibreChat 本机部署计划
 
-此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.9`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
+此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.10`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
 
 本部署启动三个容器：LibreChat、MongoDB 和官方 Admin Panel。三者使用主机网络，但进程分别只绑定 `127.0.0.1:3080`、`127.0.0.1:27017` 与 `127.0.0.1:3000`，不会监听公网，也不会修改 DNS、Tunnel、Nginx 或现有的 `80/443` 服务。
 
@@ -56,7 +56,9 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 `v0.8.7.8` 增加统一 Lihe 账号接收端：OIDC 登录显式支持 `client_secret_basic`、PKCE S256 与 nonce；已有本地用户通过独立回调绑定 `(issuer, sub)`，保留原 Mongo `_id` 和全部数据；删除前写永久身份 tombstone，防止 `sub` 被复用。Lihe 长期 Token 在统一模式下必须返回同一 `account_id`，不匹配即撤销。所有生产开关默认关闭，只有 API 端 Discovery、JWKS、两个精确回调和测试 Client 完成联调后才能启用。
 
-待发布的 `v0.8.7.9` 增加统一账号的隐藏联调模式：公开社交登录保持关闭，只初始化普通 OpenID 和账号绑定策略；服务器端使用已验证邮箱精确白名单同时限制绑定入口、登录回调和 Lihe `account_id/sub` 强校验。白名单不会进入匿名配置或浏览器包，非测试用户看不到入口且直接请求也会失败；管理后台 OIDC、其他社交登录和社交注册不会随隐藏模式启用。
+`v0.8.7.9` 增加统一账号的隐藏联调模式：公开社交登录保持关闭，只初始化普通 OpenID 和账号绑定策略；服务器端使用已验证邮箱精确白名单同时限制绑定入口、登录回调和 Lihe `account_id/sub` 强校验。白名单不会进入匿名配置或浏览器包，非测试用户看不到入口且直接请求也会失败；管理后台 OIDC、其他社交登录和社交注册不会随隐藏模式启用。
+
+待发布的 `v0.8.7.10` 修复 `openid-client` v6 Token 端认证选择：除声明 `token_endpoint_auth_method` 外，还显式向客户端配置传入对应认证对象，确保 `client_secret_basic` 使用 Authorization Header，且请求正文不携带 Client Secret。镜像验收会直接执行运行时代码并检查实际生成的 Header 与表单。
 
 官方升级时，先把新官方代码合并到本地定制分支并解决冲突，再把 `LIBRECHAT_UPSTREAM_VERSION` 和 `LIBRECHAT_BASE_DIGEST` 更新到已验证的新发布，把 `LIBRECHAT_LOCAL_REVISION` 重置为 `1`，完成构建与健康检查后再部署。
 

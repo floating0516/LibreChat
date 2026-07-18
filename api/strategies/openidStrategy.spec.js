@@ -132,6 +132,15 @@ jest.mock('~/cache/getLogStores', () =>
 // Mock the openid-client module and all its dependencies
 jest.mock('openid-client', () => {
   return {
+    ClientSecretBasic: jest.fn((secret) => ({
+      method: 'client_secret_basic',
+      secret,
+    })),
+    ClientSecretPost: jest.fn((secret) => ({
+      method: 'client_secret_post',
+      secret,
+    })),
+    None: jest.fn(() => ({ method: 'none' })),
     discovery: jest.fn().mockResolvedValue({
       clientId: 'fake_client_id',
       clientSecret: 'fake_client_secret',
@@ -307,6 +316,9 @@ describe('setupOpenId', () => {
     beforeEach(() => {
       openidClient = require('openid-client');
       openidClient.discovery.mockClear();
+      openidClient.ClientSecretBasic.mockClear();
+      openidClient.ClientSecretPost.mockClear();
+      openidClient.None.mockClear();
     });
 
     it('sets token_endpoint_auth_method to none for PKCE without a client secret', async () => {
@@ -315,9 +327,11 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.token_endpoint_auth_method).toBe('none');
       expect(metadata.client_secret).toBeUndefined();
+      expect(openidClient.None).toHaveBeenCalledTimes(1);
+      expect(clientAuthentication).toEqual({ method: 'none' });
     });
 
     it('leaves token_endpoint_auth_method unset for secret-based clients without nonce', async () => {
@@ -326,9 +340,10 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.client_secret).toBe('my-secret');
       expect(metadata.token_endpoint_auth_method).toBeUndefined();
+      expect(clientAuthentication).toBeUndefined();
     });
 
     it('sets client_secret and client_secret_post when nonce generation is enabled', async () => {
@@ -338,9 +353,14 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.client_secret).toBe('my-secret');
       expect(metadata.token_endpoint_auth_method).toBe('client_secret_post');
+      expect(openidClient.ClientSecretPost).toHaveBeenCalledWith('my-secret');
+      expect(clientAuthentication).toEqual({
+        method: 'client_secret_post',
+        secret: 'my-secret',
+      });
     });
 
     it('uses an explicitly configured client_secret_basic method', async () => {
@@ -351,9 +371,14 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.client_secret).toBe('my-secret');
       expect(metadata.token_endpoint_auth_method).toBe('client_secret_basic');
+      expect(openidClient.ClientSecretBasic).toHaveBeenCalledWith('my-secret');
+      expect(clientAuthentication).toEqual({
+        method: 'client_secret_basic',
+        secret: 'my-secret',
+      });
     });
 
     it('rejects a secret-based auth method when the client secret is absent', async () => {
@@ -371,9 +396,11 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.client_secret).toBeUndefined();
       expect(metadata.token_endpoint_auth_method).toBe('none');
+      expect(openidClient.None).toHaveBeenCalledTimes(1);
+      expect(clientAuthentication).toEqual({ method: 'none' });
     });
 
     it('does not force an auth method when PKCE and a client secret are both configured without nonce', async () => {
@@ -382,9 +409,10 @@ describe('setupOpenId', () => {
 
       await setupOpenId();
 
-      const [, , metadata] = openidClient.discovery.mock.calls.at(-1);
+      const [, , metadata, clientAuthentication] = openidClient.discovery.mock.calls.at(-1);
       expect(metadata.client_secret).toBe('my-secret');
       expect(metadata.token_endpoint_auth_method).toBeUndefined();
+      expect(clientAuthentication).toBeUndefined();
     });
 
     it('uses the shared OpenID proxy dispatcher for custom fetch requests', async () => {
