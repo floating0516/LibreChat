@@ -5,6 +5,8 @@ import type {
   TLiheTokenResponse,
   TLiheConnectionStatus,
   TLiheStoredConnection,
+  TLiheStoredConnectionData,
+  TLiheStoredConnectionEntry,
   TLiheDisconnectResponse,
 } from 'librechat-data-provider';
 
@@ -31,7 +33,7 @@ export type LiheKeyDependencies = {
 
 export type SaveLiheConnectionResult = {
   connection: TLiheStoredConnection;
-  replacedToken?: string;
+  replacedTokens: string[];
 };
 
 function formatProviderKey(provider: TLiheProvider, token: string): string {
@@ -87,7 +89,9 @@ async function readSnapshots(
   names: string[],
 ): Promise<Map<string, KeySnapshot | null>> {
   const entries = await Promise.all(
-    names.map(async (name) => [name, await readSnapshot(deps, userId, name)] as const),
+    [...new Set(names)].map(
+      async (name) => [name, await readSnapshot(deps, userId, name)] as const,
+    ),
   );
   return new Map(entries);
 }
@@ -99,6 +103,47 @@ async function restoreSnapshots(
 ): Promise<void> {
   await Promise.all(
     [...snapshots.entries()].map(([name, snapshot]) => writeSnapshot(deps, userId, name, snapshot)),
+  );
+}
+
+function normalizeStoredConnection(data: TLiheStoredConnectionData): TLiheStoredConnection {
+  if (data.version === 2) {
+    return data;
+  }
+  const { version: _version, ...connection } = data;
+  return { version: 2, connections: [connection] };
+}
+
+function connectionProviders(connections: TLiheStoredConnectionEntry[]): TLiheProvider[] {
+  return [...new Set(connections.flatMap((connection) => connection.providers))];
+}
+
+function selectConnections(
+  connection: TLiheStoredConnection,
+  provider?: TLiheProvider,
+): TLiheStoredConnectionEntry[] {
+  if (!provider) {
+    return connection.connections;
+  }
+  return connection.connections.filter((entry) => entry.providers.includes(provider));
+}
+
+export function getLiheTokensToRevoke(
+  connection: TLiheStoredConnection,
+  provider?: TLiheProvider,
+): string[] {
+  const selectedTokens = new Set(
+    selectConnections(connection, provider).map((entry) => entry.accessToken),
+  );
+  if (!provider) {
+    return [...selectedTokens];
+  }
+  return [...selectedTokens].filter((token) =>
+    connection.connections.every(
+      (entry) =>
+        entry.accessToken !== token ||
+        entry.providers.every((entryProvider) => entryProvider === provider),
+    ),
   );
 }
 
@@ -115,7 +160,7 @@ export async function loadLiheConnection(
   if (!parsed.success) {
     throw new Error('Invalid Lihe connection metadata');
   }
-  return parsed.data;
+  return normalizeStoredConnection(parsed.data);
 }
 
 export async function getLiheConnectionStatus({
@@ -137,29 +182,44 @@ export async function getLiheConnectionStatus({
       needsReconnect: false,
       hasExistingKeys: configuredProviders.some((provider) => snapshots.get(provider) != null),
       providers: configuredProviders,
+      connections: [],
     };
   }
 
-  const snapshots = await readSnapshots(deps, userId, connection.providers);
-  const providerKeysConnected = connection.providers.every(
-    (provider) =>
-      snapshots.get(provider)?.value === formatProviderKey(provider, connection.accessToken),
+  const providers = connectionProviders(connection.connections);
+  const snapshots = await readSnapshots(deps, userId, providers);
+  const connections = connection.connections.map((entry) => {
+    const providerKeysConnected = entry.providers.every(
+      (provider) =>
+        snapshots.get(provider)?.value === formatProviderKey(provider, entry.accessToken),
+    );
+    const accountMatches = expectedAccountId === undefined || entry.accountId === expectedAccountId;
+    const connected = providerKeysConnected && accountMatches;
+    return {
+      connected,
+      needsReconnect: !connected,
+      providers: entry.providers,
+      connectedAt: entry.connectedAt,
+      accountLabel: entry.accountLabel,
+    };
+  });
+  const latest = connection.connections.reduce((current, entry) =>
+    Date.parse(entry.connectedAt) > Date.parse(current.connectedAt) ? entry : current,
   );
-  const accountMatches =
-    expectedAccountId === undefined || connection.accountId === expectedAccountId;
-  const connected = providerKeysConnected && accountMatches;
+
   return {
-    connected,
-    needsReconnect: !connected,
+    connected: connections.every((entry) => entry.connected),
+    needsReconnect: connections.some((entry) => entry.needsReconnect),
     hasExistingKeys: false,
-    providers: connection.providers,
-    connectedAt: connection.connectedAt,
-    accountLabel: connection.accountLabel,
+    providers,
+    connectedAt: latest.connectedAt,
+    accountLabel: latest.accountLabel,
+    connections,
   };
 }
 
 function previousSnapshot(
-  connection: TLiheStoredConnection,
+  connection: TLiheStoredConnectionEntry,
   provider: TLiheProvider,
 ): KeySnapshot | null {
   return connection.previousKeys[provider] ?? null;
@@ -177,25 +237,47 @@ export async function saveLiheConnection({
   connectedAt?: Date;
 }): Promise<SaveLiheConnectionResult> {
   const existing = await loadLiheConnection(deps, userId);
-  const affectedProviders = [
-    ...new Set([...(existing?.providers ?? []), ...tokenResponse.providers]),
-  ];
+  const currentConnections = existing?.connections ?? [];
+  const incomingProviders = new Set(tokenResponse.providers);
+  const replacedConnections = currentConnections.filter(
+    (connection) =>
+      connection.accessToken === tokenResponse.access_token ||
+      connection.providers.some((provider) => incomingProviders.has(provider)),
+  );
+  const replacedSet = new Set(replacedConnections);
+  const retainedConnections = currentConnections.filter(
+    (connection) => !replacedSet.has(connection),
+  );
+  const affectedProviders = connectionProviders([
+    ...replacedConnections,
+    {
+      accessToken: tokenResponse.access_token,
+      scope: tokenResponse.scope,
+      providers: tokenResponse.providers,
+      connectedAt: connectedAt.toISOString(),
+      accountId: tokenResponse.account_id,
+      accountLabel: tokenResponse.account_label,
+      previousKeys: {},
+    },
+  ]);
   const snapshots = await readSnapshots(deps, userId, [LIHE_CONNECTION_KEY, ...affectedProviders]);
-  const previousKeys: TLiheStoredConnection['previousKeys'] = {};
+  const previousKeys: TLiheStoredConnectionEntry['previousKeys'] = {};
 
   for (const provider of tokenResponse.providers) {
     const current = snapshots.get(provider) ?? null;
-    const wasManaged = existing?.providers.includes(provider) === true;
+    const managedConnection = replacedConnections.find((connection) =>
+      connection.providers.includes(provider),
+    );
     const matchesExisting =
-      wasManaged && current?.value === formatProviderKey(provider, existing.accessToken);
-    const previous = matchesExisting && existing ? previousSnapshot(existing, provider) : current;
+      managedConnection != null &&
+      current?.value === formatProviderKey(provider, managedConnection.accessToken);
+    const previous = matchesExisting ? previousSnapshot(managedConnection, provider) : current;
     if (previous) {
       previousKeys[provider] = previous;
     }
   }
 
-  const connection: TLiheStoredConnection = {
-    version: 1,
+  const newConnection: TLiheStoredConnectionEntry = {
     accessToken: tokenResponse.access_token,
     scope: tokenResponse.scope,
     providers: tokenResponse.providers,
@@ -204,16 +286,20 @@ export async function saveLiheConnection({
     accountLabel: tokenResponse.account_label,
     previousKeys,
   };
+  const connection: TLiheStoredConnection = {
+    version: 2,
+    connections: [...retainedConnections, newConnection],
+  };
 
   try {
-    if (existing) {
-      for (const provider of existing.providers) {
-        if (tokenResponse.providers.includes(provider)) {
+    for (const replaced of replacedConnections) {
+      for (const provider of replaced.providers) {
+        if (incomingProviders.has(provider)) {
           continue;
         }
         const current = snapshots.get(provider) ?? null;
-        if (current?.value === formatProviderKey(provider, existing.accessToken)) {
-          await writeSnapshot(deps, userId, provider, previousSnapshot(existing, provider));
+        if (current?.value === formatProviderKey(provider, replaced.accessToken)) {
+          await writeSnapshot(deps, userId, provider, previousSnapshot(replaced, provider));
         }
       }
     }
@@ -244,7 +330,7 @@ export async function saveLiheConnection({
 
   return {
     connection,
-    replacedToken: existing?.accessToken,
+    replacedTokens: [...new Set(replacedConnections.map((entry) => entry.accessToken))],
   };
 }
 
@@ -252,30 +338,80 @@ export async function disconnectLiheConnection({
   deps,
   userId,
   connection,
+  provider,
 }: {
   deps: LiheKeyDependencies;
   userId: string;
   connection: TLiheStoredConnection;
+  provider?: TLiheProvider;
 }): Promise<TLiheDisconnectResponse> {
-  const names = [LIHE_CONNECTION_KEY, ...connection.providers];
+  const selectedConnections = selectConnections(connection, provider);
+  const remainingConnections = provider
+    ? connection.connections.flatMap((entry) => {
+        if (!entry.providers.includes(provider)) {
+          return [entry];
+        }
+        const providers = entry.providers.filter((entryProvider) => entryProvider !== provider);
+        if (providers.length === 0) {
+          return [];
+        }
+        const previousKeys = Object.fromEntries(
+          providers.flatMap((remainingProvider) => {
+            const snapshot = entry.previousKeys[remainingProvider];
+            return snapshot ? [[remainingProvider, snapshot]] : [];
+          }),
+        );
+        return [{ ...entry, providers, previousKeys }];
+      })
+    : [];
+  const disconnectedProviders = provider
+    ? selectedConnections.length > 0
+      ? [provider]
+      : []
+    : connectionProviders(selectedConnections);
+  const remainingProviders = connectionProviders(remainingConnections);
+
+  if (selectedConnections.length === 0) {
+    return {
+      disconnected: true,
+      disconnectedProviders: [],
+      remainingProviders,
+      restoredProviders: [],
+      preservedProviders: [],
+    };
+  }
+
+  const names = [LIHE_CONNECTION_KEY, ...disconnectedProviders];
   const snapshots = await readSnapshots(deps, userId, names);
   const restoredProviders: TLiheProvider[] = [];
   const preservedProviders: TLiheProvider[] = [];
 
   try {
-    for (const provider of connection.providers) {
-      const current = snapshots.get(provider) ?? null;
-      if (current?.value !== formatProviderKey(provider, connection.accessToken)) {
-        preservedProviders.push(provider);
-        continue;
-      }
-      const previous = previousSnapshot(connection, provider);
-      await writeSnapshot(deps, userId, provider, previous);
-      if (previous) {
-        restoredProviders.push(provider);
+    for (const selected of selectedConnections) {
+      const providersToDisconnect = provider ? [provider] : selected.providers;
+      for (const selectedProvider of providersToDisconnect) {
+        const current = snapshots.get(selectedProvider) ?? null;
+        if (current?.value !== formatProviderKey(selectedProvider, selected.accessToken)) {
+          preservedProviders.push(selectedProvider);
+          continue;
+        }
+        const previous = previousSnapshot(selected, selectedProvider);
+        await writeSnapshot(deps, userId, selectedProvider, previous);
+        if (previous) {
+          restoredProviders.push(selectedProvider);
+        }
       }
     }
-    await deps.deleteUserKey({ userId, name: LIHE_CONNECTION_KEY });
+    if (remainingConnections.length > 0) {
+      await deps.updateUserKey({
+        userId,
+        name: LIHE_CONNECTION_KEY,
+        value: JSON.stringify({ version: 2, connections: remainingConnections }),
+        expiresAt: null,
+      });
+    } else {
+      await deps.deleteUserKey({ userId, name: LIHE_CONNECTION_KEY });
+    }
   } catch (error) {
     try {
       await restoreSnapshots(deps, userId, snapshots);
@@ -287,6 +423,8 @@ export async function disconnectLiheConnection({
 
   return {
     disconnected: true,
+    disconnectedProviders,
+    remainingProviders,
     restoredProviders,
     preservedProviders,
   };

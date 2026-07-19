@@ -514,7 +514,7 @@ export async function fetchModels({
       options.headers['OpenAI-Organization'] = process.env.OPENAI_ORGANIZATION;
     }
 
-    const url = new URL(`${(baseURL ?? '').replace(/\/+$/, '')}${azure ? '' : '/models'}`);
+    const url = modelsEndpoint(baseURL ?? '', name, azure);
     if (user && userIdQuery) {
       url.searchParams.append('user', user);
     }
@@ -563,6 +563,17 @@ export async function fetchModels({
 
 function modelsCacheKey(baseURL: string, apiKey: string): string {
   return crypto.createHash('sha256').update(`${baseURL}:${apiKey}`).digest('hex').slice(0, 32);
+}
+
+function modelsEndpoint(baseURL: string, name: string, azure: boolean): URL {
+  const normalizedBaseURL = baseURL.replace(/\/+$/, '');
+  if (azure) {
+    return new URL(normalizedBaseURL);
+  }
+  const pathname = new URL(normalizedBaseURL).pathname;
+  const hasV1Segment = pathname.split('/').includes('v1');
+  const path = name === EModelEndpoint.anthropic && !hasV1Segment ? '/v1/models' : '/models';
+  return new URL(`${normalizedBaseURL}${path}`);
 }
 
 /** Options for fetching OpenAI models */

@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const axios = require('/app/node_modules/axios');
 
 const api = require('/app/packages/api/dist/index.cjs');
 
@@ -23,6 +24,7 @@ const config = {
 };
 
 const integrationToken = 'lhc_synthetic_token_1234567890';
+const anthropicToken = 'lhc_synthetic_anthropic_token_1234';
 const requests = [];
 
 const fetcher = async (input, init) => {
@@ -106,13 +108,55 @@ async function verify() {
     '/api/integrations/lihe',
     '/api/auth/openid/link',
     'api_key_id',
+    'Disconnect all providers',
   ]);
 
   const provider = await import('/app/packages/data-provider/dist/index.mjs');
   assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '90' }).success, true);
   assert.equal(provider.liheStartRequestSchema.safeParse({}).success, false);
   assert.equal(provider.liheStartRequestSchema.safeParse({ apiKeyId: '01' }).success, false);
+  assert.equal(
+    provider.liheDisconnectRequestSchema.safeParse({ provider: 'anthropic' }).success,
+    true,
+  );
+  assert.equal(
+    provider.liheDisconnectRequestSchema.safeParse({ provider: 'unknown' }).success,
+    false,
+  );
   assert.equal(provider.MutationKeys.openIdLinkStart, 'openIdLinkStart');
+
+  const originalAxiosGet = axios.get;
+  const previousAnthropicModels = process.env.ANTHROPIC_MODELS;
+  const previousAnthropicReverseProxy = process.env.ANTHROPIC_REVERSE_PROXY;
+  let discoveryRequest;
+  axios.get = async (url, options) => {
+    discoveryRequest = { url, options };
+    return { data: { data: [{ id: 'claude-synthetic' }] } };
+  };
+  delete process.env.ANTHROPIC_MODELS;
+  process.env.ANTHROPIC_REVERSE_PROXY = 'https://api.lihe.invalid';
+  try {
+    const models = await api.getAnthropicModels({
+      anthropicApiKey: anthropicToken,
+      fallbackModels: [],
+      skipCache: true,
+    });
+    assert.deepEqual(models, ['claude-synthetic']);
+  } finally {
+    axios.get = originalAxiosGet;
+    if (previousAnthropicModels === undefined) {
+      delete process.env.ANTHROPIC_MODELS;
+    } else {
+      process.env.ANTHROPIC_MODELS = previousAnthropicModels;
+    }
+    if (previousAnthropicReverseProxy === undefined) {
+      delete process.env.ANTHROPIC_REVERSE_PROXY;
+    } else {
+      process.env.ANTHROPIC_REVERSE_PROXY = previousAnthropicReverseProxy;
+    }
+  }
+  assert.equal(discoveryRequest.url, 'https://api.lihe.invalid/v1/models');
+  assert.equal(discoveryRequest.options.headers['x-api-key'], anthropicToken);
 
   Object.assign(process.env, {
     LIHE_CONNECT_ENABLED: 'true',
@@ -206,22 +250,66 @@ async function verify() {
     tokenResponse,
     connectedAt: new Date('2026-07-16T00:00:00.000Z'),
   });
+  assert.equal(saved.connection.version, 2);
+  assert.equal(provider.liheStoredConnectionSchema.safeParse(saved.connection).success, true);
+  assert.deepEqual(api.getLiheTokensToRevoke(saved.connection, 'anthropic'), []);
+
+  const partiallyDisconnected = await api.disconnectLiheConnection({
+    deps: keyDeps,
+    userId: 'synthetic-user',
+    connection: saved.connection,
+    provider: 'anthropic',
+  });
+  assert.deepEqual(partiallyDisconnected.disconnectedProviders, ['anthropic']);
+  assert.deepEqual(partiallyDisconnected.remainingProviders, ['openAI']);
+  assert.equal(keys.get('anthropic').value, 'previous-anthropic');
+
+  const added = await api.saveLiheConnection({
+    deps: keyDeps,
+    userId: 'synthetic-user',
+    tokenResponse: {
+      ...tokenResponse,
+      access_token: anthropicToken,
+      providers: ['anthropic'],
+    },
+    connectedAt: new Date('2026-07-16T01:00:00.000Z'),
+  });
+  assert.deepEqual(added.replacedTokens, []);
+  assert.deepEqual(
+    added.connection.connections.map((connection) => connection.providers),
+    [['openAI'], ['anthropic']],
+  );
   const status = await api.getLiheConnectionStatus({
     deps: keyDeps,
     userId: 'synthetic-user',
     configuredProviders: config.providers,
   });
   assert.equal(status.connected, true);
+  assert.equal(status.connections.length, 2);
   assert.equal(JSON.stringify(status).includes(integrationToken), false);
+  assert.equal(JSON.stringify(status).includes(anthropicToken), false);
 
+  assert.deepEqual(api.getLiheTokensToRevoke(added.connection, 'anthropic'), [anthropicToken]);
+  await api.revokeLiheToken({ config, token: anthropicToken, fetcher });
+  const anthropicDisconnected = await api.disconnectLiheConnection({
+    deps: keyDeps,
+    userId: 'synthetic-user',
+    connection: added.connection,
+    provider: 'anthropic',
+  });
+  assert.deepEqual(anthropicDisconnected.restoredProviders, ['anthropic']);
+  assert.equal(keys.get('anthropic').value, 'previous-anthropic');
+
+  const remaining = await api.loadLiheConnection(keyDeps, 'synthetic-user');
+  assert.deepEqual(api.getLiheTokensToRevoke(remaining, 'openAI'), [integrationToken]);
   await api.revokeLiheToken({ config, token: integrationToken, fetcher });
   const disconnected = await api.disconnectLiheConnection({
     deps: keyDeps,
     userId: 'synthetic-user',
-    connection: saved.connection,
+    connection: remaining,
+    provider: 'openAI',
   });
-  assert.deepEqual(disconnected.restoredProviders, ['openAI', 'anthropic']);
-  assert.equal(keys.get('anthropic').value, 'previous-anthropic');
+  assert.deepEqual(disconnected.restoredProviders, ['openAI']);
   assert.equal(keys.has(api.LIHE_CONNECTION_KEY), false);
   assert.equal(
     requests.some(({ url }) => url.endsWith('/oauth/revoke')),

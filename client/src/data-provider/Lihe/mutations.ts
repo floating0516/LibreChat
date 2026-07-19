@@ -4,6 +4,7 @@ import type { UseMutationResult } from '@tanstack/react-query';
 import type {
   TLiheStartRequest,
   TLiheStartResponse,
+  TLiheDisconnectRequest,
   TLiheDisconnectResponse,
 } from 'librechat-data-provider';
 
@@ -20,15 +21,19 @@ export function useStartLiheConnectionMutation(): UseMutationResult<
 export function useDisconnectLiheConnectionMutation(): UseMutationResult<
   TLiheDisconnectResponse,
   Error,
-  void
+  TLiheDisconnectRequest | undefined
 > {
   const queryClient = useQueryClient();
-  return useMutation([MutationKeys.liheDisconnect], () => dataService.disconnectLiheConnection(), {
-    onSuccess: () => {
-      queryClient.invalidateQueries([QueryKeys.liheConnection]);
-      queryClient.invalidateQueries([QueryKeys.name]);
-      queryClient.invalidateQueries([QueryKeys.models]);
-      queryClient.invalidateQueries([QueryKeys.tokenConfig]);
+  return useMutation(
+    [MutationKeys.liheDisconnect],
+    (payload?: TLiheDisconnectRequest) => dataService.disconnectLiheConnection(payload),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.liheConnection]);
+        queryClient.invalidateQueries([QueryKeys.name]);
+        queryClient.invalidateQueries([QueryKeys.models]);
+        queryClient.invalidateQueries([QueryKeys.tokenConfig]);
+      },
     },
-  });
+  );
 }

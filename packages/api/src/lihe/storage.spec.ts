@@ -6,6 +6,7 @@ import {
   saveLiheConnection,
   loadLiheConnection,
   getLiheConnectionStatus,
+  getLiheTokensToRevoke,
   disconnectLiheConnection,
 } from './storage';
 
@@ -37,12 +38,15 @@ function createMemoryKeys(initial: Record<string, StoredKey> = {}) {
   return { deps, keys };
 }
 
-function tokenResponse(token: string): TLiheTokenResponse {
+function tokenResponse(
+  token: string,
+  providers: TLiheTokenResponse['providers'] = ['openAI', 'anthropic'],
+): TLiheTokenResponse {
   return {
     access_token: token,
     token_type: 'Bearer',
     scope: 'models:read chat:write',
-    providers: ['openAI', 'anthropic'],
+    providers,
     expires_in: null,
   };
 }
@@ -69,7 +73,10 @@ describe('Lihe Connect credential storage', () => {
     expect(keys.get('openAI')?.value).toBe(formatProviderKey('openAI', firstToken));
     expect(keys.get('anthropic')?.value).toBe(firstToken);
     expect(keys.get('openAI')?.expiresAt).toBeNull();
-    expect(await loadLiheConnection(deps, userId)).toMatchObject({ accessToken: firstToken });
+    expect(await loadLiheConnection(deps, userId)).toMatchObject({
+      version: 2,
+      connections: [{ accessToken: firstToken }],
+    });
     await expect(
       getLiheConnectionStatus({
         deps,
@@ -97,8 +104,10 @@ describe('Lihe Connect credential storage', () => {
       tokenResponse: tokenResponse(secondToken),
     });
 
-    expect(rotated.replacedToken).toBe(firstToken);
-    expect(rotated.connection.previousKeys.anthropic?.value).toBe('original-anthropic');
+    expect(rotated.replacedTokens).toEqual([firstToken]);
+    expect(rotated.connection.connections[0].previousKeys.anthropic?.value).toBe(
+      'original-anthropic',
+    );
     await disconnectLiheConnection({ deps, userId, connection: rotated.connection });
     expect(keys.get('anthropic')?.value).toBe('original-anthropic');
   });
@@ -134,5 +143,134 @@ describe('Lihe Connect credential storage', () => {
     expect(result.preservedProviders).toEqual(['anthropic']);
     expect(keys.get('anthropic')?.value).toBe('manual-replacement');
     expect(keys.has('openAI')).toBe(false);
+  });
+
+  it('disconnects one provider without revoking a token still used by another provider', async () => {
+    const previousAnthropic = 'previous-anthropic';
+    const { deps, keys } = createMemoryKeys({
+      anthropic: { value: previousAnthropic, expiresAt: null },
+    });
+    const { connection } = await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(firstToken),
+    });
+
+    expect(getLiheTokensToRevoke(connection, 'anthropic')).toEqual([]);
+    const disconnected = await disconnectLiheConnection({
+      deps,
+      userId,
+      connection,
+      provider: 'anthropic',
+    });
+
+    expect(disconnected.disconnectedProviders).toEqual(['anthropic']);
+    expect(disconnected.remainingProviders).toEqual(['openAI']);
+    expect(keys.get('anthropic')?.value).toBe(previousAnthropic);
+    expect(keys.get('openAI')?.value).toBe(formatProviderKey('openAI', firstToken));
+    const remaining = await loadLiheConnection(deps, userId);
+    expect(remaining).toMatchObject({
+      connections: [{ accessToken: firstToken, providers: ['openAI'] }],
+    });
+    expect(getLiheTokensToRevoke(remaining!, 'openAI')).toEqual([firstToken]);
+  });
+
+  it('preserves disjoint provider connections and rotates only the overlapping provider', async () => {
+    const anthropicToken = 'lhc_anthropic_token_123456789';
+    const rotatedAnthropicToken = 'lhc_anthropic_rotated_1234567';
+    const { deps, keys } = createMemoryKeys();
+
+    await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(firstToken, ['openAI']),
+      connectedAt: new Date('2026-07-16T00:00:00.000Z'),
+    });
+    const added = await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(anthropicToken, ['anthropic']),
+      connectedAt: new Date('2026-07-16T01:00:00.000Z'),
+    });
+
+    expect(added.replacedTokens).toEqual([]);
+    expect(added.connection.connections).toHaveLength(2);
+    expect(keys.get('openAI')?.value).toBe(formatProviderKey('openAI', firstToken));
+    expect(keys.get('anthropic')?.value).toBe(anthropicToken);
+
+    const rotated = await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(rotatedAnthropicToken, ['anthropic']),
+    });
+    expect(rotated.replacedTokens).toEqual([anthropicToken]);
+    expect(rotated.connection.connections.map((entry) => entry.providers)).toEqual([
+      ['openAI'],
+      ['anthropic'],
+    ]);
+    expect(keys.get('openAI')?.value).toBe(formatProviderKey('openAI', firstToken));
+    expect(keys.get('anthropic')?.value).toBe(rotatedAnthropicToken);
+
+    const disconnected = await disconnectLiheConnection({
+      deps,
+      userId,
+      connection: rotated.connection,
+      provider: 'anthropic',
+    });
+    expect(disconnected.disconnectedProviders).toEqual(['anthropic']);
+    expect(disconnected.remainingProviders).toEqual(['openAI']);
+    expect(keys.has('anthropic')).toBe(false);
+    expect(keys.get('openAI')?.value).toBe(formatProviderKey('openAI', firstToken));
+    await expect(loadLiheConnection(deps, userId)).resolves.toMatchObject({
+      connections: [{ providers: ['openAI'], accessToken: firstToken }],
+    });
+  });
+
+  it('reports every replaced token when provider connections are merged', async () => {
+    const anthropicToken = 'lhc_anthropic_token_123456789';
+    const mergedToken = 'lhc_merged_token_123456789012';
+    const { deps } = createMemoryKeys();
+    await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(firstToken, ['openAI']),
+    });
+    await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(anthropicToken, ['anthropic']),
+    });
+
+    const merged = await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(mergedToken),
+    });
+
+    expect(merged.replacedTokens).toEqual([firstToken, anthropicToken]);
+    expect(merged.connection.connections).toEqual([
+      expect.objectContaining({ accessToken: mergedToken, providers: ['openAI', 'anthropic'] }),
+    ]);
+  });
+
+  it('normalizes legacy v1 metadata without mutating the stored value', async () => {
+    const legacy = {
+      version: 1,
+      accessToken: firstToken,
+      scope: 'models:read chat:write',
+      providers: ['openAI'] as const,
+      connectedAt: '2026-07-16T00:00:00.000Z',
+      previousKeys: {},
+    };
+    const { deps, keys } = createMemoryKeys({
+      [LIHE_CONNECTION_KEY]: { value: JSON.stringify(legacy), expiresAt: null },
+      openAI: { value: formatProviderKey('openAI', firstToken), expiresAt: null },
+    });
+
+    await expect(loadLiheConnection(deps, userId)).resolves.toEqual({
+      version: 2,
+      connections: [expect.objectContaining({ accessToken: firstToken, providers: ['openAI'] })],
+    });
+    expect(JSON.parse(keys.get(LIHE_CONNECTION_KEY)?.value ?? '{}').version).toBe(1);
   });
 });

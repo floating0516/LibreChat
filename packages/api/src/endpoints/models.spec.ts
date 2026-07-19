@@ -1052,6 +1052,43 @@ describe('getAnthropicModels', () => {
       }),
     );
   });
+
+  it('uses the native /v1/models path for an Anthropic proxy origin', async () => {
+    delete process.env.ANTHROPIC_MODELS;
+    process.env.ANTHROPIC_REVERSE_PROXY = 'https://api.lihe.chat';
+    mockedAxios.get.mockResolvedValue({ data: { data: [{ id: 'claude-test' }] } });
+
+    await getAnthropicModels({
+      user: 'user123',
+      anthropicApiKey: 'lhc_synthetic_anthropic_token',
+      fallbackModels: [],
+      skipCache: true,
+    });
+
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://api.lihe.chat/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ 'x-api-key': 'lhc_synthetic_anthropic_token' }),
+      }),
+    );
+  });
+
+  it('does not duplicate /v1 when the Anthropic proxy already includes it', async () => {
+    delete process.env.ANTHROPIC_MODELS;
+    process.env.ANTHROPIC_REVERSE_PROXY = 'https://api.lihe.chat/v1';
+    mockedAxios.get.mockResolvedValue({ data: { data: [{ id: 'claude-test' }] } });
+
+    await getAnthropicModels({
+      anthropicApiKey: 'lhc_synthetic_anthropic_token',
+      fallbackModels: [],
+      skipCache: true,
+    });
+
+    expect(mockedAxios.get).toHaveBeenCalledWith(
+      'https://api.lihe.chat/v1/models',
+      expect.any(Object),
+    );
+  });
 });
 
 describe('getGoogleModels', () => {

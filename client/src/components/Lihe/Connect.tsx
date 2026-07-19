@@ -111,7 +111,8 @@ export default function LiheConnect() {
       beginAccountLink();
       return;
     }
-    if (status.data.connected && !reconnect) {
+    // The API selection round trip drops reconnect=1; a returned api_key_id is explicit intent.
+    if (status.data.connected && !reconnect && apiKeyIdMissing) {
       navigate('/c/new', { replace: true });
       return;
     }
@@ -127,7 +128,7 @@ export default function LiheConnect() {
       setPhase('confirm');
       return;
     }
-    begin(reconnect || confirmed || status.data.needsReconnect);
+    begin(reconnect || confirmed || status.data.needsReconnect || status.data.connected);
   }, [
     attemptFailed,
     apiKeyIdInvalid,

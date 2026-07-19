@@ -40,22 +40,56 @@ const liheKeySnapshotSchema = z.object({
   expiresAt: z.string().datetime().nullable(),
 });
 
-export const liheStoredConnectionSchema = z.object({
-  version: z.literal(1),
+const lihePreviousKeysSchema = z.object({
+  openAI: liheKeySnapshotSchema.optional(),
+  anthropic: liheKeySnapshotSchema.optional(),
+  google: liheKeySnapshotSchema.optional(),
+});
+
+export const liheStoredConnectionEntrySchema = z.object({
   accessToken: z.string().min(16).max(8192),
   scope: z.string().min(1).max(512),
   providers: z.array(liheProviderSchema).min(1).max(3),
   connectedAt: z.string().datetime(),
   accountId: z.string().min(1).max(256).optional(),
   accountLabel: z.string().min(1).max(256).optional(),
-  previousKeys: z.object({
-    openAI: liheKeySnapshotSchema.optional(),
-    anthropic: liheKeySnapshotSchema.optional(),
-    google: liheKeySnapshotSchema.optional(),
-  }),
+  previousKeys: lihePreviousKeysSchema,
 });
 
-export type TLiheStoredConnection = z.infer<typeof liheStoredConnectionSchema>;
+export const liheStoredConnectionV1Schema = z.object({
+  version: z.literal(1),
+  ...liheStoredConnectionEntrySchema.shape,
+});
+
+export const liheStoredConnectionV2Schema = z
+  .object({
+    version: z.literal(2),
+    connections: z.array(liheStoredConnectionEntrySchema).min(1).max(3),
+  })
+  .superRefine(({ connections }, ctx) => {
+    const seen = new Set<TLiheProvider>();
+    for (const connection of connections) {
+      for (const provider of connection.providers) {
+        if (seen.has(provider)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Provider ${provider} is managed by more than one Lihe connection`,
+          });
+          return;
+        }
+        seen.add(provider);
+      }
+    }
+  });
+
+export const liheStoredConnectionSchema = z.union([
+  liheStoredConnectionV1Schema,
+  liheStoredConnectionV2Schema,
+]);
+
+export type TLiheStoredConnectionEntry = z.infer<typeof liheStoredConnectionEntrySchema>;
+export type TLiheStoredConnection = z.infer<typeof liheStoredConnectionV2Schema>;
+export type TLiheStoredConnectionData = z.infer<typeof liheStoredConnectionSchema>;
 
 export const liheModelsResponseSchema = z.object({
   data: z.array(z.object({ id: z.string().min(1) })).min(1),
@@ -71,6 +105,15 @@ export type TLiheConnectionStatus = {
   connectedAt?: string;
   accountLabel?: string;
   requiresAccountLink?: boolean;
+  connections: TLiheConnectionSummary[];
+};
+
+export type TLiheConnectionSummary = {
+  connected: boolean;
+  needsReconnect: boolean;
+  providers: TLiheProvider[];
+  connectedAt: string;
+  accountLabel?: string;
 };
 
 export const liheStartRequestSchema = z
@@ -86,8 +129,18 @@ export type TLiheStartResponse = {
   authorizationUrl: string;
 };
 
+export const liheDisconnectRequestSchema = z
+  .object({
+    provider: liheProviderSchema.optional(),
+  })
+  .strict();
+
+export type TLiheDisconnectRequest = z.infer<typeof liheDisconnectRequestSchema>;
+
 export type TLiheDisconnectResponse = {
   disconnected: true;
+  disconnectedProviders: TLiheProvider[];
+  remainingProviders: TLiheProvider[];
   restoredProviders: TLiheProvider[];
   preservedProviders: TLiheProvider[];
 };

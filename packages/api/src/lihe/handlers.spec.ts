@@ -4,6 +4,7 @@ import request from 'supertest';
 import cookieParser from 'cookie-parser';
 import type { LiheFetch } from './client';
 import type { LiheKeyDependencies } from './storage';
+import { saveLiheConnection } from './storage';
 import { FlowStateManager } from '~/flow/manager';
 import { createLiheHandlers, shouldRequireLiheOpenIdSubject } from './handlers';
 
@@ -169,10 +170,28 @@ describe('Lihe Connect handlers', () => {
     });
     expect(replay.headers.location).toContain('result=error');
 
-    const disconnect = await agent.post('/api/integrations/lihe/disconnect');
-    expect(disconnect.status).toBe(200);
-    expect(keys.has('openAI')).toBe(false);
+    const invalidDisconnect = await agent
+      .post('/api/integrations/lihe/disconnect')
+      .send({ provider: 'unknown' });
+    expect(invalidDisconnect.status).toBe(400);
+
+    const anthropicDisconnect = await agent
+      .post('/api/integrations/lihe/disconnect')
+      .send({ provider: 'anthropic' });
+    expect(anthropicDisconnect.status).toBe(200);
+    expect(anthropicDisconnect.body).toMatchObject({
+      disconnectedProviders: ['anthropic'],
+      remainingProviders: ['openAI'],
+    });
+    expect(keys.has('openAI')).toBe(true);
     expect(keys.has('anthropic')).toBe(false);
+    expect(revocations).toBe(0);
+
+    const openAIDisconnect = await agent
+      .post('/api/integrations/lihe/disconnect')
+      .send({ provider: 'openAI' });
+    expect(openAIDisconnect.status).toBe(200);
+    expect(keys.has('openAI')).toBe(false);
     expect(revocations).toBe(1);
 
     tokenScope = 'models:read chat:write account:read';
@@ -187,6 +206,111 @@ describe('Lihe Connect handlers', () => {
     expect(overScopedCallback.headers.location).toContain('error=token_validation_failed');
     expect(keys.size).toBe(0);
     expect(revocations).toBe(2);
+  });
+
+  it('revokes every displaced token when a new connection merges providers', async () => {
+    const keys = new Map<string, { value: string; expiresAt: Date | null }>();
+    const revokedTokens: string[] = [];
+    const openAIToken = 'lhc_existing_openai_token_123456';
+    const anthropicToken = 'lhc_existing_anthropic_token_123';
+    const mergedToken = 'lhc_merged_provider_token_12345678';
+    const keyDeps: LiheKeyDependencies = {
+      getUserKey: async ({ name }) => {
+        const key = keys.get(name);
+        if (!key) {
+          throw new Error('missing key');
+        }
+        return key.value;
+      },
+      getUserKeyExpiry: async ({ name }) => {
+        const key = keys.get(name);
+        return { expiresAt: key ? (key.expiresAt ?? 'never') : null };
+      },
+      updateUserKey: async ({ name, value, expiresAt }) => {
+        keys.set(name, { value, expiresAt: expiresAt ?? null });
+        return null;
+      },
+      deleteUserKey: async ({ name }) => keys.delete(name),
+    };
+    await saveLiheConnection({
+      deps: keyDeps,
+      userId: 'user-1',
+      tokenResponse: {
+        access_token: openAIToken,
+        token_type: 'Bearer',
+        scope: 'models:read chat:write',
+        providers: ['openAI'],
+        expires_in: null,
+      },
+    });
+    await saveLiheConnection({
+      deps: keyDeps,
+      userId: 'user-1',
+      tokenResponse: {
+        access_token: anthropicToken,
+        token_type: 'Bearer',
+        scope: 'models:read chat:write',
+        providers: ['anthropic'],
+        expires_in: null,
+      },
+    });
+
+    const fetcher: LiheFetch = async (input, init) => {
+      const url = input.toString();
+      if (url.endsWith('/oauth/token')) {
+        return new Response(
+          JSON.stringify({
+            access_token: mergedToken,
+            token_type: 'Bearer',
+            scope: 'models:read chat:write',
+            providers: ['openAI', 'anthropic'],
+            expires_in: null,
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        );
+      }
+      if (url.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'synthetic-model' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      if (url.endsWith('/oauth/revoke')) {
+        const body = new URLSearchParams(String(init?.body));
+        const token = body.get('token');
+        if (token) {
+          revokedTokens.push(token);
+        }
+        return new Response(null, { status: 200 });
+      }
+      throw new Error(`unexpected request: ${url}`);
+    };
+    const flowManager = new FlowStateManager<null>(new Keyv(), { ttl: 60_000, ci: true });
+    const handlers = createLiheHandlers({ ...keyDeps, flowManager, fetcher });
+    const app = express();
+    app.use(express.json());
+    app.use(cookieParser());
+    app.use((req, _res, next) => {
+      Object.assign(req, { user: { id: 'user-1' } });
+      next();
+    });
+    app.post('/api/integrations/lihe/start', handlers.start);
+    app.get('/api/integrations/lihe/callback', handlers.callback);
+    const agent = request.agent(app);
+
+    const start = await agent
+      .post('/api/integrations/lihe/start')
+      .send({ apiKeyId: '90', replaceExisting: true });
+    expect(start.status).toBe(200);
+    const authorizationUrl = new URL(start.body.authorizationUrl);
+    const callback = await agent.get('/api/integrations/lihe/callback').query({
+      code: 'merge-provider-connections',
+      state: authorizationUrl.searchParams.get('state'),
+    });
+
+    expect(callback.headers.location).toBe('/connect/lihe?result=connected');
+    expect(revokedTokens).toEqual([openAIToken, anthropicToken]);
+    expect(keys.get('anthropic')?.value).toBe(mergedToken);
   });
 
   it('requires and verifies the OIDC account subject in unified-account mode', async () => {

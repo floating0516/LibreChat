@@ -150,9 +150,12 @@ jobs:
               if (provider.initialModelsConfig.openAI.length !== 0) process.exit(1);
               if (provider.initialModelsConfig.anthropic.length !== 0) process.exit(1);
               if (typeof provider.liheTokenResponseSchema?.safeParse !== "function") process.exit(1);
+              if (typeof provider.liheDisconnectRequestSchema?.safeParse !== "function") process.exit(1);
               if (typeof provider.MutationKeys?.openIdLinkStart !== "string") process.exit(1);
               if (!provider.liheStartRequestSchema.safeParse({ apiKeyId: "90" }).success) process.exit(1);
               if (provider.liheStartRequestSchema.safeParse({ apiKeyId: "01" }).success) process.exit(1);
+              if (!provider.liheDisconnectRequestSchema.safeParse({ provider: "anthropic" }).success) process.exit(1);
+              if (provider.liheDisconnectRequestSchema.safeParse({ provider: "unknown" }).success) process.exit(1);
             '
 
           docker run --rm --network=none \
@@ -161,6 +164,7 @@ jobs:
             -e '
               const api = require("/app/packages/api/dist/index.cjs");
               if (typeof api.createLiheHandlers !== "function") process.exit(1);
+              if (typeof api.getLiheTokensToRevoke !== "function") process.exit(1);
               if (typeof api.verifyLiheState !== "function") process.exit(1);
               for (const name of ["createOpenIdLinkStartHandler", "isOpenIdLoginRuntimeEnabled", "isOpenIdHiddenTestUserAllowed", "shouldRequireLiheOpenIdSubject"]) {
                 if (typeof api[name] !== "function") process.exit(1);

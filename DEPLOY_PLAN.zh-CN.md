@@ -1,6 +1,6 @@
 # LibreChat 本机部署计划
 
-此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.11`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
+此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.12`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
 
 本部署启动三个容器：LibreChat、MongoDB 和官方 Admin Panel。三者使用主机网络，但进程分别只绑定 `127.0.0.1:3080`、`127.0.0.1:27017` 与 `127.0.0.1:3000`，不会监听公网，也不会修改 DNS、Tunnel、Nginx 或现有的 `80/443` 服务。
 
@@ -60,7 +60,9 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 `v0.8.7.10` 包含 `openid-client` v6 Token 端认证修复，但新增镜像校验加载完整策略后保留后台句柄，远程验证未完成，因此该 GHCR 标签未部署。
 
-待发布的 `v0.8.7.11` 保留认证修复：除声明 `token_endpoint_auth_method` 外，还显式向客户端配置传入对应认证对象，确保 `client_secret_basic` 使用 Authorization Header，且请求正文不携带 Client Secret。镜像验收会直接检查实际 Header 与表单，并在成功后显式退出且受 30 秒超时保护。
+`v0.8.7.11` 保留认证修复：除声明 `token_endpoint_auth_method` 外，还显式向客户端配置传入对应认证对象，确保 `client_secret_basic` 使用 Authorization Header，且请求正文不携带 Client Secret。镜像验收会直接检查实际 Header 与表单，并在成功后显式退出且受 30 秒超时保护。
+
+待发布的 `v0.8.7.12` 把 Claude 模型发现固定到 Anthropic 原生 `GET /v1/models`，继续使用 `x-api-key`，并避免已经包含 `/v1` 的反向代理地址重复拼接路径。Lihe 凭据元数据升级为兼容旧数据的 v2 多连接格式：不同 Provider 的 Token 可长期并存，重连只替换重叠 Provider，断开菜单按 Provider 操作；共享 Token 仍被其他 Provider 使用时不会提前撤销。镜像验收使用合成 Token 验证模型路径、并存、逐 Provider 断开和最终撤销，不读取真实用户 Key。
 
 官方升级时，先把新官方代码合并到本地定制分支并解决冲突，再把 `LIBRECHAT_UPSTREAM_VERSION` 和 `LIBRECHAT_BASE_DIGEST` 更新到已验证的新发布，把 `LIBRECHAT_LOCAL_REVISION` 重置为 `1`，完成构建与健康检查后再部署。
 

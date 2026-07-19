@@ -127,8 +127,10 @@ export function startLiheConnection(payload: l.TLiheStartRequest): Promise<l.TLi
   return request.post(endpoints.liheConnectionStart(), payload);
 }
 
-export function disconnectLiheConnection(): Promise<l.TLiheDisconnectResponse> {
-  return request.post(endpoints.liheConnectionDisconnect());
+export function disconnectLiheConnection(
+  payload: l.TLiheDisconnectRequest = {},
+): Promise<l.TLiheDisconnectResponse> {
+  return request.post(endpoints.liheConnectionDisconnect(), payload);
 }
 
 export function startOpenIdLink(

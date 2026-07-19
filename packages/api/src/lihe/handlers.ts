@@ -1,6 +1,6 @@
 import { tenantStorage, logger } from '@librechat/data-schemas';
 import { setOAuthCsrfCookie, validateOAuthCsrf, validateOAuthSession } from '~/oauth';
-import { liheStartRequestSchema } from 'librechat-data-provider';
+import { liheDisconnectRequestSchema, liheStartRequestSchema } from 'librechat-data-provider';
 import type { Request, Response } from 'express';
 import type { TLiheStartRequest, TLiheConnectionStatus } from 'librechat-data-provider';
 import type { FlowStateManager } from '~/flow/manager';
@@ -12,6 +12,7 @@ import {
   loadLiheConnection,
   saveLiheConnection,
   getLiheConnectionStatus,
+  getLiheTokensToRevoke,
   disconnectLiheConnection,
 } from './storage';
 import { createLihePkce, signLiheState, verifyLiheState } from './security';
@@ -130,6 +131,7 @@ function unavailableStatus(): TLiheConnectionStatus {
     hasExistingKeys: false,
     providers: [],
     requiresAccountLink: false,
+    connections: [],
   };
 }
 
@@ -342,17 +344,19 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
           }),
       );
       tokenStored = true;
-      if (saved.replacedToken && saved.replacedToken !== issuedToken) {
+      for (const replacedToken of saved.replacedTokens) {
+        if (replacedToken === issuedToken) {
+          continue;
+        }
         try {
-          await revokeLiheToken({
-            config,
-            token: saved.replacedToken,
-            fetcher: deps.fetcher,
-          });
+          await revokeLiheToken({ config, token: replacedToken, fetcher: deps.fetcher });
         } catch {
-          logger.warn('[Lihe Connect] Previous integration token could not be revoked');
+          logger.warn('[Lihe Connect] A replaced integration token could not be revoked');
         }
       }
+      logger.info(
+        `[Lihe Connect] Authorization completed for providers: ${tokenResponse.providers.join(',')}`,
+      );
       res.redirect(resultUrl(config.resultPath, 'connected'));
     } catch (error) {
       const code = callbackErrorCode(error);
@@ -363,7 +367,7 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
           logger.warn('[Lihe Connect] Rejected integration token could not be revoked');
         }
       }
-      logger.warn('[Lihe Connect] Authorization callback failed', { code });
+      logger.warn(`[Lihe Connect] Authorization callback failed: ${code}`);
       const path = config?.resultPath ?? '/connect/lihe';
       res.redirect(resultUrl(path, 'error', code));
     } finally {
@@ -385,21 +389,27 @@ export function createLiheHandlers(deps: LiheHandlerDependencies): {
         res.status(401).json({ error: 'unauthorized' });
         return;
       }
+      const parsedRequest = liheDisconnectRequestSchema.safeParse(req.body ?? {});
+      if (!parsedRequest.success) {
+        res.status(400).json({ error: 'invalid_request' });
+        return;
+      }
+      const { provider } = parsedRequest.data;
       const connection = await loadLiheConnection(deps, userId);
       if (!connection) {
         res.status(200).json({
           disconnected: true,
+          disconnectedProviders: [],
+          remainingProviders: [],
           restoredProviders: [],
           preservedProviders: [],
         });
         return;
       }
-      await revokeLiheToken({
-        config,
-        token: connection.accessToken,
-        fetcher: deps.fetcher,
-      });
-      const result = await disconnectLiheConnection({ deps, userId, connection });
+      for (const token of getLiheTokensToRevoke(connection, provider)) {
+        await revokeLiheToken({ config, token, fetcher: deps.fetcher });
+      }
+      const result = await disconnectLiheConnection({ deps, userId, connection, provider });
       res.status(200).json(result);
     } catch (error) {
       if (error instanceof LiheRemoteError) {
