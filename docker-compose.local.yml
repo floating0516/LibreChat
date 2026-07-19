@@ -44,6 +44,7 @@ services:
       HOST: 127.0.0.1
       PORT: "3080"
       NODE_ENV: production
+      APP_TITLE: ${APP_TITLE:-ToCreate}
       MONGO_URI: mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@127.0.0.1:27017/LibreChat?authSource=admin
     volumes:
       - ./deployment/librechat.yaml:/app/librechat.yaml:ro

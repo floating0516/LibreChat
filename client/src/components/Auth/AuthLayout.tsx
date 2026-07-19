@@ -1,7 +1,8 @@
 import { ThemeSelector } from '@librechat/client';
-import { TStartupConfig } from 'librechat-data-provider';
+import type { TStartupConfig } from 'librechat-data-provider';
+import type { TranslationKeys } from '~/hooks';
 import { ErrorMessage } from '~/components/Auth/ErrorMessage';
-import { TranslationKeys, useLocalize } from '~/hooks';
+import { useLocalize } from '~/hooks';
 import SocialLoginRender from './SocialLoginRender';
 import { BlinkAnimation } from './BlinkAnimation';
 import { Banner } from '../Banners';
@@ -60,12 +61,16 @@ function AuthLayout({
     <div className="relative flex min-h-screen flex-col bg-white dark:bg-gray-900">
       <Banner />
       <BlinkAnimation active={isFetching}>
-        <div className="mt-6 h-10 w-full bg-cover">
+        <div className="mt-6 flex h-10 w-full items-center justify-center gap-2.5">
           <img
             src="assets/logo.svg"
-            className="h-full w-full object-contain"
-            alt={localize('com_ui_logo', { 0: startupConfig?.appTitle ?? 'LibreChat' })}
+            className="h-10 w-10 shrink-0 object-contain"
+            alt=""
+            aria-hidden="true"
           />
+          <span className="min-w-0 truncate text-2xl font-semibold text-gray-900 dark:text-gray-100">
+            {startupConfig?.appTitle ?? 'ToCreate'}
+          </span>
         </div>
       </BlinkAnimation>
       <DisplayError />

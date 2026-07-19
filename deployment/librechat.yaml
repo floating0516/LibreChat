@@ -116,7 +116,7 @@ endpoints:
     - name: 'Grok'
       apiKey: 'user_provided'
       baseURL: 'https://api.lihe.chat/v1'
-      iconURL: '/assets/assets/grok.svg'
+      iconURL: '/assets/grok.svg'
       models:
         # Required by LibreChat's endpoint schema. The server hides this fallback
         # until a user key successfully returns models from the gateway's /models endpoint.

@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.12
+ARG LIBRECHAT_VERSION=v0.8.7.13
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -36,6 +36,7 @@ COPY --chown=node:node packages/api/src/lihe/security.ts /app/packages/api/src/l
 COPY --chown=node:node packages/api/src/lihe/storage.ts /app/packages/api/src/lihe/storage.ts
 COPY --chown=node:node packages/api/src/oauth/callback.ts /app/packages/api/src/oauth/callback.ts
 COPY --chown=node:node packages/api/src/utils/oidc.ts /app/packages/api/src/utils/oidc.ts
+COPY --chown=node:node packages/api/src/shared-links/config.ts /app/packages/api/src/shared-links/config.ts
 COPY --chown=node:node packages/data-schemas/src/types/index.ts /app/packages/data-schemas/src/types/index.ts
 COPY --chown=node:node packages/data-schemas/src/types/openid.ts /app/packages/data-schemas/src/types/openid.ts
 COPY --chown=node:node packages/data-schemas/src/schema/index.ts /app/packages/data-schemas/src/schema/index.ts
@@ -68,6 +69,8 @@ COPY --chown=node:node client/src/components/Nav/Settings/registry.tsx /app/clie
 COPY --chown=node:node client/src/components/Nav/Settings/types.ts /app/client/src/components/Nav/Settings/types.ts
 COPY --chown=node:node client/src/data-provider/Auth/mutations.ts /app/client/src/data-provider/Auth/mutations.ts
 COPY --chown=node:node client/src/routes/index.tsx /app/client/src/routes/index.tsx
+COPY --chown=node:node client/src/routes/Layouts/Startup.tsx /app/client/src/routes/Layouts/Startup.tsx
+COPY --chown=node:node client/src/components/Auth/AuthLayout.tsx /app/client/src/components/Auth/AuthLayout.tsx
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
 COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
@@ -75,6 +78,14 @@ COPY --chown=node:node client/src/components/Chat/Input/ChatForm.tsx /app/client
 COPY --chown=node:node client/src/components/Chat/Input/ReasoningEffortControl.tsx /app/client/src/components/Chat/Input/ReasoningEffortControl.tsx
 COPY --chown=node:node client/src/locales/en/translation.json /app/client/src/locales/en/translation.json
 COPY --chown=node:node client/src/locales/zh-Hans/translation.json /app/client/src/locales/zh-Hans/translation.json
+COPY --chown=node:node client/index.html /app/client/index.html
+COPY --chown=node:node client/vite.config.ts /app/client/vite.config.ts
+COPY --chown=node:node client/public/assets/logo.svg /app/client/public/assets/logo.svg
+COPY --chown=node:node client/public/assets/favicon-16x16.png /app/client/public/assets/favicon-16x16.png
+COPY --chown=node:node client/public/assets/favicon-32x32.png /app/client/public/assets/favicon-32x32.png
+COPY --chown=node:node client/public/assets/apple-touch-icon-180x180.png /app/client/public/assets/apple-touch-icon-180x180.png
+COPY --chown=node:node client/public/assets/icon-192x192.png /app/client/public/assets/icon-192x192.png
+COPY --chown=node:node client/public/assets/maskable-icon.png /app/client/public/assets/maskable-icon.png
 COPY --chown=node:node client/public/assets/grok.svg /app/client/public/assets/grok.svg
 
 USER node
@@ -124,7 +135,7 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
   && /tmp/librechat-build/node_modules/.bin/tsdown \
   && cd /app/client \
   && NODE_OPTIONS=--max-old-space-size=768 /tmp/librechat-build/node_modules/.bin/vite build \
-  && cp -R public/assets dist/assets \
+  && cp -R public/assets/. dist/assets/ \
   && cp public/robots.txt dist/robots.txt \
   && rm -f /app/client/node_modules/vite \
     /app/client/node_modules/@vitejs/plugin-react \

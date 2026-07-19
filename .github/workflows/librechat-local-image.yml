@@ -138,6 +138,12 @@ jobs:
             /work/verify.cjs
 
           docker run --rm --network=none \
+            -v "$GITHUB_WORKSPACE/scripts/branding/verify.cjs:/work/verify.cjs:ro" \
+            --entrypoint node \
+            "$image_ref" \
+            /work/verify.cjs
+
+          docker run --rm --network=none \
             -e EXPECTED_VERSION="$VERSION" \
             --entrypoint node \
             "$image_ref" \
