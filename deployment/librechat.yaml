@@ -100,6 +100,18 @@ mcpServers:
         sensitive: true
 
 endpoints:
+  all:
+    titleConvo: true
+    titleMethod: 'completion'
+    titlePrompt: |
+      请为下面的对话生成一个简洁、准确的简体中文标题。
+      要求：
+      - 无论对话使用何种语言，标题都以简体中文为主；产品名、技术名词和代码标识可保留原文。
+      - 标题不超过 16 个汉字；英文单词、数字和代码标识各按一个单位计。
+      - 只输出标题本身，不要引号、句末标点、前缀、解释、分析、JSON、XML 标签或思考过程。
+
+      对话：
+      {convo}
   agents:
     capabilities:
       - 'deferred_tools'

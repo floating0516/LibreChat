@@ -177,6 +177,8 @@ jobs:
               }
               if (typeof api.resolveOpenIDTokenEndpointAuthMethod !== "function") process.exit(1);
               if (api.resolveOpenIDTokenEndpointAuthMethod({ configuredMethod: "client_secret_basic", clientSecret: "synthetic", usePKCE: true, generateNonce: true }) !== "client_secret_basic") process.exit(1);
+              if (api.sanitizeTitle("<thinking>synthetic reasoning</thinking> 中文标题") !== "中文标题") process.exit(1);
+              if (api.sanitizeTitle("<thinking>synthetic reasoning</thinking>") !== "未命名对话") process.exit(1);
               Object.assign(process.env, {
                 ALLOW_SOCIAL_LOGIN: "false",
                 OPENID_HIDDEN_TEST_MODE: "true",

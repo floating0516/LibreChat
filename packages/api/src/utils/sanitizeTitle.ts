@@ -1,14 +1,15 @@
 /** Max character length for sanitized titles (the output will never exceed this). */
 export const MAX_TITLE_LENGTH = 200;
-export const DEFAULT_TITLE_FALLBACK = 'Untitled Conversation';
+export const DEFAULT_TITLE_FALLBACK = '未命名对话';
 
 /**
  * Sanitizes LLM-generated chat titles by removing {@link https://en.wikipedia.org/wiki/Chain-of-thought_prompting <think>}
- * reasoning blocks, normalizing whitespace, and truncating to {@link MAX_TITLE_LENGTH} characters.
+ * and `<thinking>` reasoning blocks, normalizing whitespace, and truncating to
+ * {@link MAX_TITLE_LENGTH} characters.
  *
  * Titles exceeding the limit are truncated at a code-point-safe boundary and suffixed with `...`.
  *
- * @param rawTitle - The raw LLM-generated title string, potentially containing <think> blocks.
+ * @param rawTitle - The raw LLM-generated title string, potentially containing reasoning blocks.
  * @returns A sanitized, potentially truncated title string, never empty (fallback used if needed).
  */
 export function sanitizeTitle(rawTitle: string): string {
@@ -16,8 +17,8 @@ export function sanitizeTitle(rawTitle: string): string {
     return DEFAULT_TITLE_FALLBACK;
   }
 
-  const thinkBlockRegex = /<think\b[^>]*>[\s\S]*?<\/think>/gi;
-  const cleaned = rawTitle.replace(thinkBlockRegex, '');
+  const reasoningBlockRegex = /<(think(?:ing)?)\b[^>]*>[\s\S]*?<\/\1>/gi;
+  const cleaned = rawTitle.replace(reasoningBlockRegex, '');
   const normalized = cleaned.replace(/\s+/g, ' ');
   const trimmed = normalized.trim();
 

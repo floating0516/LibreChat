@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.13
+ARG LIBRECHAT_VERSION=v0.8.7.14
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -35,6 +35,7 @@ COPY --chown=node:node packages/api/src/lihe/index.ts /app/packages/api/src/lihe
 COPY --chown=node:node packages/api/src/lihe/security.ts /app/packages/api/src/lihe/security.ts
 COPY --chown=node:node packages/api/src/lihe/storage.ts /app/packages/api/src/lihe/storage.ts
 COPY --chown=node:node packages/api/src/oauth/callback.ts /app/packages/api/src/oauth/callback.ts
+COPY --chown=node:node packages/api/src/utils/sanitizeTitle.ts /app/packages/api/src/utils/sanitizeTitle.ts
 COPY --chown=node:node packages/api/src/utils/oidc.ts /app/packages/api/src/utils/oidc.ts
 COPY --chown=node:node packages/api/src/shared-links/config.ts /app/packages/api/src/shared-links/config.ts
 COPY --chown=node:node packages/data-schemas/src/types/index.ts /app/packages/data-schemas/src/types/index.ts

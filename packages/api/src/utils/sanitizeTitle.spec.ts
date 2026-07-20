@@ -7,6 +7,11 @@ describe('sanitizeTitle', () => {
       expect(sanitizeTitle(input)).toBe('User Hi Greeting');
     });
 
+    it('should remove a single thinking block and return the clean title', () => {
+      const input = '<thinking>This is reasoning about the topic</thinking> 日常问候';
+      expect(sanitizeTitle(input)).toBe('日常问候');
+    });
+
     it('should handle thinking block at the start', () => {
       const input = '<think>reasoning here</think> Clean Title Text';
       expect(sanitizeTitle(input)).toBe('Clean Title Text');
@@ -34,6 +39,11 @@ describe('sanitizeTitle', () => {
       const input = '<think>r1</think><think>r2</think>Title';
       expect(sanitizeTitle(input)).toBe('Title');
     });
+
+    it('should handle mixed think and thinking blocks', () => {
+      const input = '<think>r1</think><thinking>r2</thinking>中文标题';
+      expect(sanitizeTitle(input)).toBe('中文标题');
+    });
   });
 
   describe('Case Insensitivity', () => {
@@ -50,6 +60,11 @@ describe('sanitizeTitle', () => {
     it('should handle mixed case closing tag', () => {
       const input = '<think>reasoning</THINK> Title';
       expect(sanitizeTitle(input)).toBe('Title');
+    });
+
+    it('should handle uppercase THINKING tags', () => {
+      const input = '<THINKING>reasoning</THINKING> 中文标题';
+      expect(sanitizeTitle(input)).toBe('中文标题');
     });
   });
 
@@ -136,6 +151,11 @@ describe('sanitizeTitle', () => {
       expect(sanitizeTitle(input)).toBe(DEFAULT_TITLE_FALLBACK);
     });
 
+    it('should return the Chinese fallback when only a thinking block exists', () => {
+      const input = '<thinking>only reasoning no title</thinking>';
+      expect(sanitizeTitle(input)).toBe('未命名对话');
+    });
+
     it('should return fallback for non-string whitespace', () => {
       expect(sanitizeTitle('   ')).toBe(DEFAULT_TITLE_FALLBACK);
     });
@@ -166,6 +186,12 @@ describe('sanitizeTitle', () => {
       const input =
         '<think>\nThe user is asking for a greeting. I should provide a friendly response.\n</think> User Hi Greeting';
       expect(sanitizeTitle(input)).toBe('User Hi Greeting');
+    });
+
+    it('should handle a real-world thinking-tag title response', () => {
+      const input =
+        '<thinking> The user said "hi" - simple greeting conversation. </thinking> 日常问候';
+      expect(sanitizeTitle(input)).toBe('日常问候');
     });
 
     it('should handle real-world with attributes', () => {
