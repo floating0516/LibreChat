@@ -4,7 +4,12 @@ import { useRecoilState } from 'recoil';
 import { ThemeContext } from '@librechat/client';
 import type { ComponentType } from 'react';
 import type { TranslationKeys } from '~/hooks';
-import { ThemeSelector, LangSelector } from '../SettingsTabs/General/Selectors';
+import { useAppearance } from '~/Providers/AppearanceContext';
+import {
+  ThemeSelector,
+  LangSelector,
+  InterfaceStyleSelector,
+} from '../SettingsTabs/General/Selectors';
 import ToggleSwitch from '../SettingsTabs/ToggleSwitch';
 import store from '~/store';
 
@@ -30,6 +35,11 @@ export function ThemeSetting() {
   const { theme, setTheme } = useContext(ThemeContext);
   const onChange = useCallback((value: string) => setTheme(value), [setTheme]);
   return <ThemeSelector theme={theme} onChange={onChange} />;
+}
+
+export function InterfaceStyleSetting() {
+  const { interfaceStyle, setInterfaceStyle } = useAppearance();
+  return <InterfaceStyleSelector interfaceStyle={interfaceStyle} onChange={setInterfaceStyle} />;
 }
 
 export function LangSetting() {

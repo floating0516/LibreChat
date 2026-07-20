@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.14
+ARG LIBRECHAT_VERSION=v0.8.7.15
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -59,6 +59,11 @@ COPY --chown=node:node client/src/data-provider/index.ts /app/client/src/data-pr
 COPY --chown=node:node client/src/data-provider/Lihe/index.ts /app/client/src/data-provider/Lihe/index.ts
 COPY --chown=node:node client/src/data-provider/Lihe/mutations.ts /app/client/src/data-provider/Lihe/mutations.ts
 COPY --chown=node:node client/src/data-provider/Lihe/queries.ts /app/client/src/data-provider/Lihe/queries.ts
+COPY --chown=node:node client/src/App.jsx /app/client/src/App.jsx
+COPY --chown=node:node client/src/main.jsx /app/client/src/main.jsx
+COPY --chown=node:node client/src/appearance.css /app/client/src/appearance.css
+COPY --chown=node:node client/src/Providers/AppearanceContext.tsx /app/client/src/Providers/AppearanceContext.tsx
+COPY --chown=node:node client/src/Providers/index.ts /app/client/src/Providers/index.ts
 COPY --chown=node:node client/src/components/Lihe/Connect.tsx /app/client/src/components/Lihe/Connect.tsx
 COPY --chown=node:node client/src/components/Lihe/ConnectionRow.tsx /app/client/src/components/Lihe/ConnectionRow.tsx
 COPY --chown=node:node client/src/components/Lihe/AccountLinkResult.tsx /app/client/src/components/Lihe/AccountLinkResult.tsx
@@ -68,6 +73,8 @@ COPY --chown=node:node client/src/components/Nav/SettingsTabs/ProviderKeys/Provi
 COPY --chown=node:node client/src/components/Nav/Settings/context.tsx /app/client/src/components/Nav/Settings/context.tsx
 COPY --chown=node:node client/src/components/Nav/Settings/registry.tsx /app/client/src/components/Nav/Settings/registry.tsx
 COPY --chown=node:node client/src/components/Nav/Settings/types.ts /app/client/src/components/Nav/Settings/types.ts
+COPY --chown=node:node client/src/components/Nav/Settings/controls.tsx /app/client/src/components/Nav/Settings/controls.tsx
+COPY --chown=node:node client/src/components/Nav/SettingsTabs/General/Selectors.tsx /app/client/src/components/Nav/SettingsTabs/General/Selectors.tsx
 COPY --chown=node:node client/src/data-provider/Auth/mutations.ts /app/client/src/data-provider/Auth/mutations.ts
 COPY --chown=node:node client/src/routes/index.tsx /app/client/src/routes/index.tsx
 COPY --chown=node:node client/src/routes/Layouts/Startup.tsx /app/client/src/routes/Layouts/Startup.tsx
@@ -77,6 +84,9 @@ COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdow
 COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
 COPY --chown=node:node client/src/components/Chat/Input/ChatForm.tsx /app/client/src/components/Chat/Input/ChatForm.tsx
 COPY --chown=node:node client/src/components/Chat/Input/ReasoningEffortControl.tsx /app/client/src/components/Chat/Input/ReasoningEffortControl.tsx
+COPY --chown=node:node client/src/components/Chat/Landing.tsx /app/client/src/components/Chat/Landing.tsx
+COPY --chown=node:node client/src/components/Chat/Messages/Message.tsx /app/client/src/components/Chat/Messages/Message.tsx
+COPY --chown=node:node client/src/components/Chat/Messages/ui/MessageRender.tsx /app/client/src/components/Chat/Messages/ui/MessageRender.tsx
 COPY --chown=node:node client/src/locales/en/translation.json /app/client/src/locales/en/translation.json
 COPY --chown=node:node client/src/locales/zh-Hans/translation.json /app/client/src/locales/zh-Hans/translation.json
 COPY --chown=node:node client/index.html /app/client/index.html

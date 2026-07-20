@@ -5,7 +5,9 @@ import App from './App';
 import '@librechat/client/style.css';
 import './style.css';
 import './mobile.css';
+import './appearance.css';
 import { ApiErrorBoundaryProvider } from './hooks/ApiErrorBoundaryContext';
+import { initializeInterfaceStyle } from './Providers/AppearanceContext';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/contrib/copy-tex.js';
 
@@ -17,6 +19,8 @@ window.addEventListener('vite:preloadError', (event) => {
 
 const container = document.getElementById('root');
 const root = createRoot(container);
+
+initializeInterfaceStyle();
 
 async function bootstrap() {
   await initializeI18n();

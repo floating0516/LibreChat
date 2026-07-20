@@ -193,11 +193,13 @@ const MessageRender = memo(function MessageRender({
         baseClasses.common,
         baseClasses.chat,
         conditionalClasses.focus,
-        'message-render',
+        'message-render message-turn',
       )}
+      data-message-author={msg.isCreatedByUser ? 'user' : 'assistant'}
+      data-maximized={maximizeChatSpace ? 'true' : undefined}
     >
       {!hasParallelContent && (
-        <div className="relative flex flex-shrink-0 flex-col items-center">
+        <div className="message-avatar relative flex flex-shrink-0 flex-col items-center">
           <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full">
             <MessageIcon iconData={iconData} assistant={assistant} agent={agent} />
           </div>
@@ -212,7 +214,7 @@ const MessageRender = memo(function MessageRender({
         )}
       >
         {!hasParallelContent && (
-          <h2 className={cn('select-none font-semibold', fontSize)}>
+          <h2 className={cn('message-label select-none font-semibold', fontSize)}>
             <span className="sr-only">{getHeaderPrefixForScreenReader(msg, localize)}</span>
             {messageLabel}
             <MessageTimestamp value={msg.createdAt ?? msg.clientTimestamp} />
@@ -241,7 +243,7 @@ const MessageRender = memo(function MessageRender({
           {hasNoChildren && isSubmitting ? (
             <PlaceholderRow />
           ) : (
-            <SubRow classes="text-xs">
+            <SubRow classes="message-actions text-xs">
               <SiblingSwitch
                 siblingIdx={siblingIdx}
                 siblingCount={siblingCount}

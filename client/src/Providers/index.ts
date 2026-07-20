@@ -1,5 +1,6 @@
 export { default as AssistantsProvider } from './AssistantsContext';
 export { default as AgentsProvider } from './AgentsContext';
+export * from './AppearanceContext';
 export * from './ActivePanelContext';
 export * from './AgentPanelContext';
 export * from './ChatContext';

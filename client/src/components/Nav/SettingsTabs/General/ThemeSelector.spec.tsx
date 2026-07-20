@@ -1,10 +1,10 @@
 // ThemeSelector.spec.tsx
 import 'test/matchMedia.mock';
 import React from 'react';
-import { render, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/extend-expect';
 import { RecoilRoot } from 'recoil';
-import { ThemeSelector } from './Selectors';
+import { InterfaceStyleSelector, ThemeSelector } from './Selectors';
 
 describe('ThemeSelector', () => {
   let mockOnChange;
@@ -54,5 +54,32 @@ describe('ThemeSelector', () => {
     await waitFor(() => {
       expect(mockOnChange).toHaveBeenCalledWith('dark');
     });
+  });
+});
+
+describe('InterfaceStyleSelector', () => {
+  it('renders the selected style as an accessible segmented control', () => {
+    const onChange = jest.fn();
+    render(
+      <RecoilRoot>
+        <InterfaceStyleSelector interfaceStyle="claude" onChange={onChange} />
+      </RecoilRoot>,
+    );
+
+    expect(screen.getByRole('radiogroup', { name: 'Interface style' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Claude' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: 'ChatGPT' })).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('selects another interface style', () => {
+    const onChange = jest.fn();
+    render(
+      <RecoilRoot>
+        <InterfaceStyleSelector interfaceStyle="default" onChange={onChange} />
+      </RecoilRoot>,
+    );
+
+    fireEvent.click(screen.getByRole('radio', { name: 'ChatGPT' }));
+    expect(onChange).toHaveBeenCalledWith('chatgpt');
   });
 });

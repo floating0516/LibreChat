@@ -1,0 +1,439 @@
+/*
+ * Visual treatment adapted from assistant-ui's MIT-licensed Claude and ChatGPT examples.
+ * Copyright (c) 2025 AgentbaseAI Inc.
+ */
+
+html[data-interface-style='claude'] {
+  --presentation: #f0ece0 !important;
+  --text-primary: #1a1a18 !important;
+  --text-secondary: #5b5950 !important;
+  --text-secondary-alt: #6f6c64 !important;
+  --text-tertiary: #8a8780 !important;
+  --ring-primary: #c96442 !important;
+  --header-primary: #f0ece0 !important;
+  --header-hover: #e7e1d4 !important;
+  --header-button-hover: #e7e1d4 !important;
+  --surface-active: #ddd6c8 !important;
+  --surface-active-alt: #e5e0d6 !important;
+  --surface-hover: #e5e0d6 !important;
+  --surface-hover-alt: #d9d2c4 !important;
+  --surface-primary: #f7f4ec !important;
+  --surface-primary-alt: #eae5da !important;
+  --surface-primary-contrast: #e5e0d6 !important;
+  --surface-secondary: #f7f4ec !important;
+  --surface-secondary-alt: #e5e0d6 !important;
+  --surface-tertiary: #e5e0d6 !important;
+  --surface-tertiary-alt: #fff !important;
+  --surface-dialog: #f7f4ec !important;
+  --surface-submit: #c96442 !important;
+  --surface-submit-hover: #b1573a !important;
+  --surface-chat: #fff !important;
+  --border-light: #e5e0d6 !important;
+  --border-medium-alt: #d9d2c4 !important;
+  --border-medium: #d1cabd !important;
+  --border-heavy: #aaa397 !important;
+  --border-xheavy: #8a8378 !important;
+  --background: 45 31% 96% !important;
+  --foreground: 60 4% 10% !important;
+  --primary: 15 53% 52% !important;
+  --primary-foreground: 0 0% 100% !important;
+  --secondary: 41 25% 90% !important;
+  --secondary-foreground: 45 7% 22% !important;
+  --muted: 42 22% 91% !important;
+  --muted-foreground: 45 5% 42% !important;
+  --accent: 41 25% 90% !important;
+  --accent-foreground: 45 7% 22% !important;
+  --border: 41 22% 87% !important;
+  --input: 41 22% 87% !important;
+  --ring: 15 53% 52% !important;
+  --card: 45 31% 96% !important;
+  --card-foreground: 60 4% 10% !important;
+  --radius: 0.625rem !important;
+}
+
+html.dark[data-interface-style='claude'] {
+  --presentation: #2b2a27 !important;
+  --text-primary: #eee !important;
+  --text-secondary: #cdc9be !important;
+  --text-secondary-alt: #b9b5ab !important;
+  --text-tertiary: #a3a098 !important;
+  --ring-primary: #c96442 !important;
+  --header-primary: #2b2a27 !important;
+  --header-hover: #393733 !important;
+  --header-button-hover: #393733 !important;
+  --surface-active: #494640 !important;
+  --surface-active-alt: #393733 !important;
+  --surface-hover: #45423d !important;
+  --surface-hover-alt: #514d47 !important;
+  --surface-primary: #24231f !important;
+  --surface-primary-alt: #201f1c !important;
+  --surface-primary-contrast: #34322e !important;
+  --surface-secondary: #2b2a27 !important;
+  --surface-secondary-alt: #393733 !important;
+  --surface-tertiary: #393733 !important;
+  --surface-tertiary-alt: #45423d !important;
+  --surface-dialog: #24231f !important;
+  --surface-submit: #c96442 !important;
+  --surface-submit-hover: #d47757 !important;
+  --surface-chat: #1f1e1b !important;
+  --border-light: #3d3a35 !important;
+  --border-medium-alt: #4a4741 !important;
+  --border-medium: #55514a !important;
+  --border-heavy: #716c63 !important;
+  --border-xheavy: #918b81 !important;
+  --background: 45 7% 13% !important;
+  --foreground: 45 10% 93% !important;
+  --primary: 15 53% 52% !important;
+  --primary-foreground: 0 0% 100% !important;
+  --secondary: 40 7% 20% !important;
+  --secondary-foreground: 45 10% 93% !important;
+  --muted: 40 7% 20% !important;
+  --muted-foreground: 43 6% 63% !important;
+  --accent: 40 7% 24% !important;
+  --accent-foreground: 45 10% 93% !important;
+  --border: 40 7% 24% !important;
+  --input: 40 7% 24% !important;
+  --ring: 15 53% 52% !important;
+  --card: 45 6% 14% !important;
+  --card-foreground: 45 10% 93% !important;
+}
+
+html[data-interface-style='chatgpt'] {
+  --presentation: #fff !important;
+  --text-primary: #0d0d0d !important;
+  --text-secondary: #5d5d5d !important;
+  --text-secondary-alt: #6f6f6f !important;
+  --text-tertiary: #8e8e8e !important;
+  --ring-primary: #0d0d0d !important;
+  --header-primary: #fff !important;
+  --header-hover: #f2f2f2 !important;
+  --header-button-hover: #f2f2f2 !important;
+  --surface-active: #e8e8e8 !important;
+  --surface-active-alt: #ececec !important;
+  --surface-hover: #e8e8e8 !important;
+  --surface-hover-alt: #dedede !important;
+  --surface-primary: #fff !important;
+  --surface-primary-alt: #f9f9f9 !important;
+  --surface-primary-contrast: #f2f2f2 !important;
+  --surface-secondary: #f7f7f7 !important;
+  --surface-secondary-alt: #e8e8e8 !important;
+  --surface-tertiary: #ececec !important;
+  --surface-tertiary-alt: #fff !important;
+  --surface-dialog: #fff !important;
+  --surface-submit: #0d0d0d !important;
+  --surface-submit-hover: #2f2f2f !important;
+  --surface-chat: #fff !important;
+  --border-light: #e5e5e5 !important;
+  --border-medium-alt: #d9d9d9 !important;
+  --border-medium: #d0d0d0 !important;
+  --border-heavy: #a8a8a8 !important;
+  --border-xheavy: #777 !important;
+  --background: 0 0% 100% !important;
+  --foreground: 0 0% 5% !important;
+  --primary: 0 0% 5% !important;
+  --primary-foreground: 0 0% 98% !important;
+  --secondary: 0 0% 96% !important;
+  --secondary-foreground: 0 0% 9% !important;
+  --muted: 0 0% 96% !important;
+  --muted-foreground: 0 0% 36% !important;
+  --accent: 0 0% 95% !important;
+  --accent-foreground: 0 0% 9% !important;
+  --border: 0 0% 90% !important;
+  --input: 0 0% 90% !important;
+  --ring: 0 0% 5% !important;
+  --card: 0 0% 100% !important;
+  --card-foreground: 0 0% 5% !important;
+  --radius: 0.75rem !important;
+}
+
+html.dark[data-interface-style='chatgpt'] {
+  --presentation: #000 !important;
+  --text-primary: #ececec !important;
+  --text-secondary: #afafaf !important;
+  --text-secondary-alt: #cdcdcd !important;
+  --text-tertiary: #8e8e8e !important;
+  --ring-primary: #ececec !important;
+  --header-primary: #000 !important;
+  --header-hover: #212121 !important;
+  --header-button-hover: #212121 !important;
+  --surface-active: #3a3a3a !important;
+  --surface-active-alt: #2f2f2f !important;
+  --surface-hover: #2f2f2f !important;
+  --surface-hover-alt: #3a3a3a !important;
+  --surface-primary: #212121 !important;
+  --surface-primary-alt: #171717 !important;
+  --surface-primary-contrast: #2a2a2a !important;
+  --surface-secondary: #212121 !important;
+  --surface-secondary-alt: #2f2f2f !important;
+  --surface-tertiary: #2f2f2f !important;
+  --surface-tertiary-alt: #3a3a3a !important;
+  --surface-dialog: #212121 !important;
+  --surface-submit: #ececec !important;
+  --surface-submit-hover: #d9d9d9 !important;
+  --surface-chat: #212121 !important;
+  --border-light: #2f2f2f !important;
+  --border-medium-alt: #3a3a3a !important;
+  --border-medium: #474747 !important;
+  --border-heavy: #666 !important;
+  --border-xheavy: #8e8e8e !important;
+  --background: 0 0% 13% !important;
+  --foreground: 0 0% 93% !important;
+  --primary: 0 0% 93% !important;
+  --primary-foreground: 0 0% 5% !important;
+  --secondary: 0 0% 18% !important;
+  --secondary-foreground: 0 0% 93% !important;
+  --muted: 0 0% 18% !important;
+  --muted-foreground: 0 0% 69% !important;
+  --accent: 0 0% 23% !important;
+  --accent-foreground: 0 0% 93% !important;
+  --border: 0 0% 23% !important;
+  --input: 0 0% 23% !important;
+  --ring: 0 0% 93% !important;
+  --card: 0 0% 13% !important;
+  --card-foreground: 0 0% 93% !important;
+}
+
+html[data-interface-style='claude'] body,
+html[data-interface-style='chatgpt'] body {
+  background-color: var(--presentation);
+}
+
+html[data-interface-style='claude'] .chat-composer-form:not([data-maximized='true']),
+html[data-interface-style='chatgpt'] .chat-composer-form:not([data-maximized='true']) {
+  max-width: 48rem;
+}
+
+html[data-interface-style='claude'] .chat-composer-shell:not([data-temporary='true']) {
+  border-color: #e5e0d6;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: none;
+}
+
+html.dark[data-interface-style='claude'] .chat-composer-shell:not([data-temporary='true']) {
+  border-color: #3d3a35;
+  background: #1f1e1b;
+}
+
+html[data-interface-style='claude'] .chat-composer-shell textarea,
+html[data-interface-style='claude'] .landing-title,
+html[data-interface-style='claude'] .message-content {
+  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  letter-spacing: 0;
+}
+
+html[data-interface-style='claude'] .chat-composer-shell textarea::placeholder {
+  color: #8a8780;
+}
+
+html[data-interface-style='claude'] #send-button {
+  border-radius: 0.5rem;
+  background: #c96442;
+}
+
+html[data-interface-style='claude'] #send-button:not(:disabled):hover {
+  background: #b1573a;
+}
+
+html[data-interface-style='claude'] #send-button svg {
+  color: #fff;
+}
+
+html[data-interface-style='chatgpt'] .chat-composer-shell:not([data-temporary='true']) {
+  border-color: #e5e5e5;
+  border-radius: 1.75rem;
+  background: #fff;
+  box-shadow: 0 2px 6px -2px rgb(0 0 0 / 5%);
+}
+
+html[data-interface-style='chatgpt']
+  .chat-composer-shell:not([data-temporary='true']):focus-within {
+  border-color: #d0d0d0;
+  box-shadow: 0 2px 8px -2px rgb(0 0 0 / 8%);
+}
+
+html.dark[data-interface-style='chatgpt'] .chat-composer-shell:not([data-temporary='true']) {
+  border-color: transparent;
+  background: #212121;
+  box-shadow: inset 0 0 1px rgb(255 255 255 / 20%);
+}
+
+html.dark[data-interface-style='chatgpt']
+  .chat-composer-shell:not([data-temporary='true']):focus-within {
+  border-color: transparent;
+  box-shadow: inset 0 0 1px rgb(255 255 255 / 28%);
+}
+
+html[data-interface-style='chatgpt'] #send-button {
+  background: #0d0d0d;
+}
+
+html[data-interface-style='chatgpt'] #send-button svg {
+  color: #fff;
+}
+
+html.dark[data-interface-style='chatgpt'] #send-button {
+  background: #ececec;
+}
+
+html.dark[data-interface-style='chatgpt'] #send-button svg {
+  color: #0d0d0d;
+}
+
+html[data-interface-style='claude'] .message-turn:not([data-maximized='true']),
+html[data-interface-style='chatgpt'] .message-turn:not([data-maximized='true']) {
+  max-width: 48rem;
+}
+
+html[data-interface-style='claude'] .message-turn,
+html[data-interface-style='chatgpt'] .message-turn {
+  gap: 0;
+}
+
+html[data-interface-style='claude'] .message-avatar,
+html[data-interface-style='claude'] .message-label,
+html[data-interface-style='chatgpt'] .message-avatar,
+html[data-interface-style='chatgpt'] .message-label {
+  display: none;
+}
+
+html[data-interface-style='claude'] .message-row,
+html[data-interface-style='chatgpt'] .message-row {
+  padding-block: 0.75rem;
+}
+
+html[data-interface-style='claude'] .message-turn[data-message-author='user'],
+html[data-interface-style='chatgpt'] .message-turn[data-message-author='user'] {
+  justify-content: flex-end;
+}
+
+html[data-interface-style='claude'] .user-turn,
+html[data-interface-style='chatgpt'] .user-turn {
+  margin-inline-start: auto;
+  width: auto;
+  min-width: 0;
+}
+
+html[data-interface-style='claude'] .user-turn {
+  max-width: 80%;
+}
+
+html[data-interface-style='chatgpt'] .user-turn {
+  max-width: 70%;
+}
+
+html[data-interface-style='claude'] .agent-turn,
+html[data-interface-style='chatgpt'] .agent-turn {
+  width: 100%;
+}
+
+html[data-interface-style='claude'] .user-turn .text-message,
+html[data-interface-style='chatgpt'] .user-turn .text-message {
+  align-items: flex-end;
+}
+
+html[data-interface-style='claude'] .user-turn .message-content,
+html[data-interface-style='chatgpt'] .user-turn .message-content {
+  width: auto;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+html[data-interface-style='claude'] .user-turn .message-content {
+  border-radius: 1rem;
+  background: #e5e0d6;
+  padding: 0.625rem 1rem;
+  color: #1a1a18;
+  --tw-prose-body: #1a1a18;
+  --tw-prose-headings: #1a1a18;
+}
+
+html.dark[data-interface-style='claude'] .user-turn .message-content {
+  background: #393937;
+  color: #eee;
+  --tw-prose-body: #eee;
+  --tw-prose-headings: #eee;
+}
+
+html[data-interface-style='claude'] .agent-turn .message-content {
+  color: #1a1a18;
+  line-height: 1.65;
+  --tw-prose-body: #1a1a18;
+  --tw-prose-headings: #1a1a18;
+}
+
+html.dark[data-interface-style='claude'] .agent-turn .message-content {
+  color: #eee;
+  --tw-prose-body: #eee;
+  --tw-prose-headings: #eee;
+}
+
+html[data-interface-style='chatgpt'] .user-turn .message-content {
+  border-radius: 1.375rem;
+  background: #0d0d0d;
+  padding: 0.625rem 1rem;
+  color: #fff;
+  --tw-prose-body: #fff;
+  --tw-prose-headings: #fff;
+}
+
+html.dark[data-interface-style='chatgpt'] .user-turn .message-content {
+  background: #ececec;
+  color: #0d0d0d;
+  --tw-prose-body: #0d0d0d;
+  --tw-prose-headings: #0d0d0d;
+}
+
+html[data-interface-style='chatgpt'] .agent-turn .message-content {
+  color: #0d0d0d;
+  --tw-prose-body: #0d0d0d;
+  --tw-prose-headings: #0d0d0d;
+}
+
+html.dark[data-interface-style='chatgpt'] .agent-turn .message-content {
+  color: #ececec;
+  --tw-prose-body: #ececec;
+  --tw-prose-headings: #ececec;
+}
+
+html[data-interface-style='claude'] .user-turn .message-actions,
+html[data-interface-style='chatgpt'] .user-turn .message-actions {
+  justify-content: flex-end;
+}
+
+html[data-interface-style='chatgpt'] .agent-turn .hover-button {
+  visibility: visible;
+  opacity: 1;
+}
+
+html[data-interface-style='claude'] .landing-title {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 400;
+}
+
+html[data-interface-style='chatgpt'] .landing-title {
+  font-size: 1.5rem;
+  line-height: 1.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+@media (max-width: 639px) {
+  html[data-interface-style='claude'] .chat-composer-form,
+  html[data-interface-style='chatgpt'] .chat-composer-form {
+    padding-inline: 0.5rem;
+  }
+
+  html[data-interface-style='claude'] .user-turn {
+    max-width: 88%;
+  }
+
+  html[data-interface-style='chatgpt'] .user-turn {
+    max-width: 85%;
+  }
+
+  html[data-interface-style='chatgpt'] .chat-composer-shell:not([data-temporary='true']) {
+    border-radius: 1.5rem;
+  }
+}

@@ -20,7 +20,7 @@ import ConversationModeSwitch from '../SettingsTabs/Speech/ConversationModeSwitc
 import EnableTwoFactorItem from '../SettingsTabs/Account/TwoFactorAuthentication';
 import OpenIdAccountLink from '../SettingsTabs/Account/OpenIdAccountLink';
 import ImportConversations from '../SettingsTabs/Data/ImportConversations';
-import { toggleControl, ThemeSetting, LangSetting } from './controls';
+import { toggleControl, ThemeSetting, InterfaceStyleSetting, LangSetting } from './controls';
 import BackupCodesItem from '../SettingsTabs/Account/BackupCodesItem';
 import { EngineSTTSetting, EngineTTSSetting } from './SpeechControls';
 import FontSizeSelector from '../SettingsTabs/Chat/FontSizeSelector';
@@ -53,6 +53,14 @@ export const registry: SettingEntry[] = [
     labelKey: 'com_nav_theme',
     keywords: ['dark', 'light', 'appearance', 'color'],
     Component: ThemeSetting,
+  },
+  {
+    id: 'interfaceStyle',
+    tab: GENERAL,
+    section: 'appearance',
+    labelKey: 'com_nav_interface_style',
+    keywords: ['style', 'claude', 'chatgpt', 'appearance'],
+    Component: InterfaceStyleSetting,
   },
   {
     id: 'language',

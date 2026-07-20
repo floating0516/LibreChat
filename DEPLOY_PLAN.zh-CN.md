@@ -1,6 +1,6 @@
 # LibreChat 本机部署计划
 
-此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.14`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
+此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.15`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
 
 本部署启动三个容器：LibreChat、MongoDB 和官方 Admin Panel。三者使用主机网络，但进程分别只绑定 `127.0.0.1:3080`、`127.0.0.1:27017` 与 `127.0.0.1:3000`，不会监听公网，也不会修改 DNS、Tunnel、Nginx 或现有的 `80/443` 服务。
 
@@ -66,7 +66,9 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 `v0.8.7.13` 把主应用、浏览器页签与 PWA 安装名称统一为 `ToCreate`，并替换登录页标识、favicon、Apple Touch 与 maskable 图标。此版本同时修复 `public/assets` 被错误复制到双层 `/assets/assets` 的路径问题，让登录页 Logo、favicon 与 Grok 图标都从标准 `/assets/*` 地址返回；镜像验收会检查品牌元数据、各尺寸图标，并拒绝双层资源目录。
 
-待发布的 `v0.8.7.14` 为所有模型端点统一设置简体中文对话标题提示词，保留必要的产品名、技术名词和代码标识，并禁止模型在标题中输出解释或思考过程。标题清理同时覆盖模型实际返回的 `<think>` 与 `<thinking>` 推理标签，清理后为空时使用中文回退标题。
+`v0.8.7.14` 为所有模型端点统一设置简体中文对话标题提示词，保留必要的产品名、技术名词和代码标识，并禁止模型在标题中输出解释或思考过程。标题清理同时覆盖模型实际返回的 `<think>` 与 `<thinking>` 推理标签，清理后为空时使用中文回退标题。
+
+待发布的 `v0.8.7.15` 增加独立于亮色、暗色与跟随系统模式的界面风格选择，提供默认、Claude 和 ChatGPT 三种外观。Claude 与 ChatGPT 风格基于 `assistant-ui` 的 MIT 示例移植配色、排版、消息气泡、输入框和侧栏视觉，不替换 LibreChat 的消息状态、附件、搜索、工具调用或智能体功能；选择仅保存在当前浏览器本地。
 
 官方升级时，先把新官方代码合并到本地定制分支并解决冲突，再把 `LIBRECHAT_UPSTREAM_VERSION` 和 `LIBRECHAT_BASE_DIGEST` 更新到已验证的新发布，把 `LIBRECHAT_LOCAL_REVISION` 重置为 `1`，完成构建与健康检查后再部署。
 

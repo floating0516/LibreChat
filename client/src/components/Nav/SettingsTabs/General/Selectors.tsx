@@ -1,6 +1,9 @@
 import { useRecoilValue } from 'recoil';
+import * as RadioGroup from '@radix-ui/react-radio-group';
 import { Dropdown, Spinner } from '@librechat/client';
+import type { InterfaceStyle } from '~/Providers/AppearanceContext';
 import { useLocalize } from '~/hooks';
+import { cn } from '~/utils';
 import store from '~/store';
 
 export const ThemeSelector = ({
@@ -36,6 +39,86 @@ export const ThemeSelector = ({
         aria-labelledby={labelId}
         portal={portal}
       />
+    </div>
+  );
+};
+
+export const InterfaceStyleSelector = ({
+  interfaceStyle,
+  onChange,
+}: {
+  interfaceStyle: InterfaceStyle;
+  onChange: (value: InterfaceStyle) => void;
+}) => {
+  const localize = useLocalize();
+  const labelId = 'interface-style-selector-label';
+  const styleOptions: {
+    value: InterfaceStyle;
+    label: string;
+    swatches: readonly [string, string];
+  }[] = [
+    {
+      value: 'default',
+      label: localize('com_nav_interface_style_default'),
+      swatches: ['#ffffff', '#10b981'],
+    },
+    {
+      value: 'claude',
+      label: localize('com_nav_interface_style_claude'),
+      swatches: ['#f0ece0', '#c96442'],
+    },
+    {
+      value: 'chatgpt',
+      label: localize('com_nav_interface_style_chatgpt'),
+      swatches: ['#212121', '#ececec'],
+    },
+  ];
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div id={labelId}>{localize('com_nav_interface_style')}</div>
+      <RadioGroup.Root
+        value={interfaceStyle}
+        orientation="horizontal"
+        onValueChange={(value) => {
+          const option = styleOptions.find((candidate) => candidate.value === value);
+          if (option) {
+            onChange(option.value);
+          }
+        }}
+        aria-labelledby={labelId}
+        className="grid w-full grid-cols-3 overflow-hidden rounded-lg border border-border-light sm:w-[320px]"
+        data-testid="interface-style-selector"
+      >
+        {styleOptions.map((option, index) => {
+          const selected = interfaceStyle === option.value;
+          return (
+            <RadioGroup.Item
+              key={option.value}
+              value={option.value}
+              className={cn(
+                'flex min-w-0 items-center justify-center gap-1.5 border-r border-border-light px-2 py-2 text-xs transition-colors last:border-r-0',
+                selected
+                  ? 'bg-surface-active-alt font-medium text-text-primary'
+                  : 'bg-surface-primary text-text-secondary hover:bg-surface-hover hover:text-text-primary',
+                index === 0 && 'rounded-l-[7px]',
+                index === styleOptions.length - 1 && 'rounded-r-[7px]',
+              )}
+            >
+              <span className="flex shrink-0 -space-x-1" aria-hidden="true">
+                {option.swatches.map((color) => (
+                  <span
+                    key={color}
+                    className="h-3.5 w-3.5 rounded-full border border-black/15 dark:border-white/20"
+                    style={{ backgroundColor: color }}
+                  />
+                ))}
+              </span>
+              <span className="truncate">{option.label}</span>
+            </RadioGroup.Item>
+          );
+        })}
+      </RadioGroup.Root>
     </div>
   );
 };
