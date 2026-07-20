@@ -3,6 +3,46 @@
  * Copyright (c) 2025 AgentbaseAI Inc.
  */
 
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/interface/noto-serif-sc-400-v5.3.0.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Serif SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('/fonts/interface/noto-serif-sc-600-v5.3.0.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('/fonts/interface/noto-sans-sc-400-v5.3.0.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('/fonts/interface/noto-sans-sc-500-v5.3.0.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 600;
+  src: url('/fonts/interface/noto-sans-sc-600-v5.3.0.woff2') format('woff2');
+}
+
 html[data-interface-style='claude'] {
   --presentation: #f0ece0 !important;
   --text-primary: #1a1a18 !important;
@@ -196,6 +236,8 @@ html.dark[data-interface-style='chatgpt'] {
 html[data-interface-style='claude'] body,
 html[data-interface-style='chatgpt'] body {
   background-color: var(--presentation);
+  font-family: Inter, 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: 0;
 }
 
 html[data-interface-style='claude'] .chat-composer-form:not([data-maximized='true']),
@@ -218,8 +260,20 @@ html.dark[data-interface-style='claude'] .chat-composer-shell:not([data-temporar
 html[data-interface-style='claude'] .chat-composer-shell textarea,
 html[data-interface-style='claude'] .landing-title,
 html[data-interface-style='claude'] .message-content {
-  font-family: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  font-family: 'Noto Serif SC', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
   letter-spacing: 0;
+}
+
+html[data-interface-style='chatgpt'] .chat-composer-shell textarea,
+html[data-interface-style='chatgpt'] .landing-title,
+html[data-interface-style='chatgpt'] .message-content {
+  font-family: Inter, 'Noto Sans SC', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  letter-spacing: 0;
+}
+
+html[data-interface-style='claude'] .message-content :is(code, kbd, samp, pre),
+html[data-interface-style='chatgpt'] .message-content :is(code, kbd, samp, pre) {
+  font-family: 'Roboto Mono', monospace !important;
 }
 
 html[data-interface-style='claude'] .chat-composer-shell textarea::placeholder {

@@ -247,6 +247,12 @@ jobs:
             -lc '
               set -eu
               test -f /app/client/dist/index.html
+              test -s /app/client/dist/fonts/interface/noto-serif-sc-400-v5.3.0.woff2
+              test -s /app/client/dist/fonts/interface/noto-serif-sc-600-v5.3.0.woff2
+              test -s /app/client/dist/fonts/interface/noto-sans-sc-400-v5.3.0.woff2
+              test -s /app/client/dist/fonts/interface/noto-sans-sc-500-v5.3.0.woff2
+              test -s /app/client/dist/fonts/interface/noto-sans-sc-600-v5.3.0.woff2
+              test -f /app/client/dist/fonts/interface/OFL-1.1.txt
               test -f /app/packages/data-provider/dist/index.mjs
               test -f /app/packages/api/dist/index.cjs
               test -f /app/packages/data-schemas/dist/index.cjs
@@ -258,6 +264,8 @@ jobs:
               test ! -L /app/packages/data-provider/node_modules/tsdown
               test ! -L /app/packages/data-schemas/node_modules/tsdown
               test ! -L /app/packages/api/node_modules/tsdown
+              grep -Rql "Noto Serif SC" /app/client/dist/assets/*.css
+              grep -Rql "Noto Sans SC" /app/client/dist/assets/*.css
             '
 
           label="$(docker image inspect "$image_ref" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"

@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.15
+ARG LIBRECHAT_VERSION=v0.8.7.16
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -98,6 +98,7 @@ COPY --chown=node:node client/public/assets/apple-touch-icon-180x180.png /app/cl
 COPY --chown=node:node client/public/assets/icon-192x192.png /app/client/public/assets/icon-192x192.png
 COPY --chown=node:node client/public/assets/maskable-icon.png /app/client/public/assets/maskable-icon.png
 COPY --chown=node:node client/public/assets/grok.svg /app/client/public/assets/grok.svg
+COPY --chown=node:node client/public/fonts/interface /app/client/public/fonts/interface
 
 USER node
 WORKDIR /app
@@ -147,6 +148,8 @@ RUN ( node -e 'const fs = require("fs"); const path = "/app/package.json"; const
   && cd /app/client \
   && NODE_OPTIONS=--max-old-space-size=768 /tmp/librechat-build/node_modules/.bin/vite build \
   && cp -R public/assets/. dist/assets/ \
+  && mkdir -p dist/fonts/interface \
+  && cp -R public/fonts/interface/. dist/fonts/interface/ \
   && cp public/robots.txt dist/robots.txt \
   && rm -f /app/client/node_modules/vite \
     /app/client/node_modules/@vitejs/plugin-react \
