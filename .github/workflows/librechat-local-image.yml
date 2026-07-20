@@ -266,6 +266,7 @@ jobs:
               test ! -L /app/packages/api/node_modules/tsdown
               grep -Rql "Noto Serif SC" /app/client/dist/assets/*.css
               grep -Rql "Noto Sans SC" /app/client/dist/assets/*.css
+              grep -Rql "nav-panel-tools" /app/client/dist/assets/*.js
             '
 
           label="$(docker image inspect "$image_ref" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"

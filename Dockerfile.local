@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.16
+ARG LIBRECHAT_VERSION=v0.8.7.17
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -75,6 +75,7 @@ COPY --chown=node:node client/src/components/Nav/Settings/registry.tsx /app/clie
 COPY --chown=node:node client/src/components/Nav/Settings/types.ts /app/client/src/components/Nav/Settings/types.ts
 COPY --chown=node:node client/src/components/Nav/Settings/controls.tsx /app/client/src/components/Nav/Settings/controls.tsx
 COPY --chown=node:node client/src/components/Nav/SettingsTabs/General/Selectors.tsx /app/client/src/components/Nav/SettingsTabs/General/Selectors.tsx
+COPY --chown=node:node client/src/components/UnifiedSidebar/ExpandedPanel.tsx /app/client/src/components/UnifiedSidebar/ExpandedPanel.tsx
 COPY --chown=node:node client/src/data-provider/Auth/mutations.ts /app/client/src/data-provider/Auth/mutations.ts
 COPY --chown=node:node client/src/routes/index.tsx /app/client/src/routes/index.tsx
 COPY --chown=node:node client/src/routes/Layouts/Startup.tsx /app/client/src/routes/Layouts/Startup.tsx

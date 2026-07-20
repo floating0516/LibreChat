@@ -1,8 +1,9 @@
 import React from 'react';
 import { RecoilRoot } from 'recoil';
 import '@testing-library/jest-dom/extend-expect';
-import { MessagesSquare, NotebookPen } from 'lucide-react';
+import { Brain, FileText, MessagesSquare, NotebookPen } from 'lucide-react';
 import { render, fireEvent, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { MutableSnapshot } from 'recoil';
 import { ActivePanelProvider, DEFAULT_PANEL } from '~/Providers/ActivePanelContext';
@@ -64,6 +65,16 @@ const createLinks = () => [
     title: 'com_ui_prompts' as const,
     icon: NotebookPen,
     id: 'prompts',
+  },
+  {
+    title: 'com_ui_memories' as const,
+    icon: Brain,
+    id: 'memories',
+  },
+  {
+    title: 'com_ui_files' as const,
+    icon: FileText,
+    id: 'files',
   },
 ];
 
@@ -139,6 +150,48 @@ describe('ExpandedPanel', () => {
       fireEvent.click(inactiveButton);
       expect(onExpand).toHaveBeenCalledTimes(1);
       expect(localStorage.getItem('side:active-panel')).toBe('prompts');
+    });
+  });
+
+  describe('tools overflow menu', () => {
+    it('keeps only primary links in the icon strip', () => {
+      renderPanel();
+
+      expect(screen.getByRole('button', { name: 'com_ui_chat_history' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'com_ui_prompts' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'com_ui_memories' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'com_ui_files' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'com_ui_tools' })).toBeInTheDocument();
+    });
+
+    it('opens a secondary panel from the tools menu', async () => {
+      renderPanel();
+
+      await userEvent.click(screen.getByRole('button', { name: 'com_ui_tools' }));
+      const filesLink = await screen.findByRole('menuitem', { name: 'com_ui_files' });
+      await userEvent.click(filesLink);
+
+      expect(localStorage.getItem('side:active-panel')).toBe('files');
+    });
+
+    it('marks the tools button active for a secondary panel', () => {
+      renderPanel({ initialPanel: 'memories' });
+
+      expect(screen.getByRole('button', { name: 'com_ui_tools' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+
+    it('expands the sidebar after choosing a secondary panel while collapsed', async () => {
+      const { onExpand } = renderPanel({ expanded: false });
+
+      await userEvent.click(screen.getByRole('button', { name: 'com_ui_tools' }));
+      const memoriesLink = await screen.findByRole('menuitem', { name: 'com_ui_memories' });
+      await userEvent.click(memoriesLink);
+
+      expect(onExpand).toHaveBeenCalledTimes(1);
+      expect(localStorage.getItem('side:active-panel')).toBe('memories');
     });
   });
 
