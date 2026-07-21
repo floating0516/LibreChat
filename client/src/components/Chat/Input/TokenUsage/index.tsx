@@ -16,6 +16,8 @@ interface TokenUsageProps {
   isSubmitting: boolean;
 }
 
+const CONTEXT_USAGE_WARNING_PERCENT = 75;
+
 function TokenUsageIndicator({
   index,
   conversation,
@@ -31,13 +33,15 @@ function TokenUsageIndicator({
   const popover = Ariakit.usePopoverStore({ placement: 'top' });
   const disclosureRef = useRef<HTMLButtonElement>(null);
 
-  /** Hide until the branch has data — keeps a fresh, message-less chat clean and
-   *  lets the indicator animate into view once the first tokens land. */
-  if (view.usedTokens <= 0) {
+  const hasMax = view.maxTokens != null && view.maxTokens > 0;
+  const isNearContextLimit = hasMax && view.percent >= CONTEXT_USAGE_WARNING_PERCENT;
+
+  /** Cost reporting is an explicit admin choice; otherwise context usage stays
+   *  out of the composer until it is useful as a capacity warning. */
+  if (view.usedTokens <= 0 || (!showCost && !isNearContextLimit)) {
     return null;
   }
 
-  const hasMax = view.maxTokens != null && view.maxTokens > 0;
   const ariaLabel = hasMax
     ? localize('com_ui_context_usage_label', {
         0: formatTokens(view.usedTokens),

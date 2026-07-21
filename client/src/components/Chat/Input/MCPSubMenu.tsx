@@ -1,7 +1,6 @@
 import React from 'react';
 import * as Ariakit from '@ariakit/react';
-import { ChevronRight } from 'lucide-react';
-import { MCPIcon, PinIcon } from '@librechat/client';
+import { Check, ChevronRight, Settings2 } from 'lucide-react';
 import MCPServerMenuItem from '~/components/MCP/MCPServerMenuItem';
 import MCPConfigDialog from '~/components/MCP/MCPConfigDialog';
 import { useBadgeRowContext } from '~/Providers';
@@ -29,9 +28,7 @@ const MCPSubMenu = React.forwardRef<HTMLButtonElement, MCPSubMenuProps>(
     }
 
     const {
-      isPinned,
       mcpValues,
-      setIsPinned,
       isInitializing,
       placeholderText,
       connectionStatus,
@@ -46,6 +43,13 @@ const MCPSubMenu = React.forwardRef<HTMLButtonElement, MCPSubMenuProps>(
     }
 
     const configDialogProps = getConfigDialogProps();
+    const selectedCount = mcpValues?.length ?? 0;
+    const mcpLabel = placeholder || placeholderText;
+    const selectedLabel =
+      selectedCount > 0 ? localize('com_ui_x_selected', { 0: selectedCount }) : null;
+    const accessibleLabel = selectedLabel
+      ? `${localize('com_ui_advanced')}: ${mcpLabel}, ${selectedLabel}`
+      : `${localize('com_ui_advanced')}: ${mcpLabel}`;
 
     return (
       <>
@@ -53,6 +57,8 @@ const MCPSubMenu = React.forwardRef<HTMLButtonElement, MCPSubMenuProps>(
           <Ariakit.MenuButton
             ref={ref}
             {...props}
+            aria-label={accessibleLabel}
+            data-testid="tools-menu-advanced"
             onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
               e.stopPropagation();
               menuStore.toggle();
@@ -63,33 +69,28 @@ const MCPSubMenu = React.forwardRef<HTMLButtonElement, MCPSubMenuProps>(
             )}
           >
             <div className="flex items-center gap-2">
-              <MCPIcon className="h-5 w-5 flex-shrink-0 text-text-primary" aria-hidden="true" />
-              <span>{placeholder || placeholderText}</span>
+              <Settings2 className="icon-md" aria-hidden="true" />
+              <span>{localize('com_ui_advanced')}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedLabel && (
+                <span className="text-xs text-text-secondary">{selectedLabel}</span>
+              )}
+              <span
+                aria-hidden="true"
+                data-testid="tools-menu-selection"
+                className="flex size-4 shrink-0 items-center justify-center text-text-primary"
+              >
+                {selectedCount > 0 && <Check className="size-4" strokeWidth={2.5} />}
+              </span>
               <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsPinned(!isPinned);
-              }}
-              className={cn(
-                'rounded p-1 transition-all duration-200',
-                'hover:bg-surface-tertiary hover:shadow-sm',
-                !isPinned && 'text-text-secondary hover:text-text-primary',
-              )}
-              aria-label={isPinned ? localize('com_ui_unpin') : localize('com_ui_pin')}
-            >
-              <div className="h-4 w-4">
-                <PinIcon unpin={isPinned} />
-              </div>
-            </button>
           </Ariakit.MenuButton>
 
           <Ariakit.Menu
             portal={true}
             unmountOnHide={true}
-            aria-label={localize('com_ui_mcp_servers')}
+            aria-label={mcpLabel}
             className={cn(
               'animate-popover-left z-40 ml-3 flex min-w-[260px] max-w-[320px] flex-col rounded-xl',
               'border border-border-light bg-presentation p-1.5 shadow-lg',

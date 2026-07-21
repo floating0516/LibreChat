@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.18
+ARG LIBRECHAT_VERSION=v0.8.7.19
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -83,8 +83,18 @@ COPY --chown=node:node client/src/components/Auth/AuthLayout.tsx /app/client/src
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
 COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
+COPY --chown=node:node client/src/components/Chat/Input/Artifacts.tsx /app/client/src/components/Chat/Input/Artifacts.tsx
+COPY --chown=node:node client/src/components/Chat/Input/ArtifactsSubMenu.tsx /app/client/src/components/Chat/Input/ArtifactsSubMenu.tsx
 COPY --chown=node:node client/src/components/Chat/Input/ChatForm.tsx /app/client/src/components/Chat/Input/ChatForm.tsx
+COPY --chown=node:node client/src/components/Chat/Input/CodeInterpreter.tsx /app/client/src/components/Chat/Input/CodeInterpreter.tsx
+COPY --chown=node:node client/src/components/Chat/Input/FileSearch.tsx /app/client/src/components/Chat/Input/FileSearch.tsx
+COPY --chown=node:node client/src/components/Chat/Input/MCPSelect.tsx /app/client/src/components/Chat/Input/MCPSelect.tsx
+COPY --chown=node:node client/src/components/Chat/Input/MCPSubMenu.tsx /app/client/src/components/Chat/Input/MCPSubMenu.tsx
 COPY --chown=node:node client/src/components/Chat/Input/ReasoningEffortControl.tsx /app/client/src/components/Chat/Input/ReasoningEffortControl.tsx
+COPY --chown=node:node client/src/components/Chat/Input/Skills.tsx /app/client/src/components/Chat/Input/Skills.tsx
+COPY --chown=node:node client/src/components/Chat/Input/TokenUsage/index.tsx /app/client/src/components/Chat/Input/TokenUsage/index.tsx
+COPY --chown=node:node client/src/components/Chat/Input/ToolsDropdown.tsx /app/client/src/components/Chat/Input/ToolsDropdown.tsx
+COPY --chown=node:node client/src/components/Chat/Input/WebSearch.tsx /app/client/src/components/Chat/Input/WebSearch.tsx
 COPY --chown=node:node client/src/components/Chat/Landing.tsx /app/client/src/components/Chat/Landing.tsx
 COPY --chown=node:node client/src/components/Chat/Messages/Message.tsx /app/client/src/components/Chat/Messages/Message.tsx
 COPY --chown=node:node client/src/components/Chat/Messages/ui/MessageRender.tsx /app/client/src/components/Chat/Messages/ui/MessageRender.tsx

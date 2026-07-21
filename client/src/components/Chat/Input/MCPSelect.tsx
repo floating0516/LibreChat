@@ -45,7 +45,6 @@ function MCPSelectContent() {
   }
 
   const {
-    isPinned,
     mcpValues,
     isInitializing,
     placeholderText,
@@ -56,7 +55,7 @@ function MCPSelectContent() {
     getServerStatusIconProps,
   } = manager;
 
-  if (!isPinned && mcpValues?.length === 0) {
+  if (!mcpValues || mcpValues.length === 0) {
     return null;
   }
 

@@ -1,14 +1,11 @@
 import React from 'react';
 import * as Ariakit from '@ariakit/react';
-import { PinIcon } from '@librechat/client';
 import { ArtifactModes } from 'librechat-data-provider';
-import { ChevronRight, WandSparkles } from 'lucide-react';
+import { Check, ChevronRight, WandSparkles } from 'lucide-react';
 import { useLocalize } from '~/hooks';
 import { cn } from '~/utils';
 
 interface ArtifactsSubMenuProps extends React.HTMLAttributes<HTMLButtonElement> {
-  isArtifactsPinned: boolean;
-  setIsArtifactsPinned: (value: boolean) => void;
   artifactsMode: string;
   handleArtifactsToggle: () => void;
   handleShadcnToggle: () => void;
@@ -18,8 +15,6 @@ interface ArtifactsSubMenuProps extends React.HTMLAttributes<HTMLButtonElement> 
 const ArtifactsSubMenu = React.forwardRef<HTMLButtonElement, ArtifactsSubMenuProps>(
   (
     {
-      isArtifactsPinned,
-      setIsArtifactsPinned,
       artifactsMode,
       handleArtifactsToggle,
       handleShadcnToggle,
@@ -64,25 +59,20 @@ const ArtifactsSubMenu = React.forwardRef<HTMLButtonElement, ArtifactsSubMenuPro
             <div className="flex items-center gap-2">
               <WandSparkles className="icon-md" aria-hidden="true" />
               <span>{localize('com_ui_artifacts')}</span>
-              {isEnabled && <ChevronRight className="ml-auto h-3 w-3" aria-hidden="true" />}
             </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsArtifactsPinned(!isArtifactsPinned);
-              }}
-              className={cn(
-                'rounded p-1 transition-all duration-200',
-                'hover:bg-surface-tertiary hover:shadow-sm',
-                !isArtifactsPinned && 'text-text-secondary hover:text-text-primary',
-              )}
-              aria-label={isArtifactsPinned ? 'Unpin' : 'Pin'}
-            >
-              <div className="h-4 w-4">
-                <PinIcon unpin={isArtifactsPinned} />
-              </div>
-            </button>
+            <div className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                data-testid="tools-menu-selection"
+                className="flex size-4 shrink-0 items-center justify-center text-text-primary"
+              >
+                {isEnabled && <Check className="size-4" strokeWidth={2.5} />}
+              </span>
+              <ChevronRight
+                className={cn('h-3 w-3', !isEnabled && 'invisible')}
+                aria-hidden="true"
+              />
+            </div>
           </Ariakit.MenuButton>
 
           {isEnabled && (

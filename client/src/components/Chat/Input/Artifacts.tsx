@@ -15,7 +15,7 @@ interface ArtifactsToggleState {
 function Artifacts() {
   const localize = useLocalize();
   const context = useBadgeRowContext();
-  const { toggleState, debouncedChange, isPinned } = context?.artifacts ?? {};
+  const { toggleState, debouncedChange } = context?.artifacts ?? {};
 
   const { artifactsEnabled } = useAgentCapabilities(
     context?.agentsConfig?.capabilities ?? defaultAgentCapabilities,
@@ -81,7 +81,7 @@ function Artifacts() {
     return null;
   }
 
-  if (!isEnabled && !isPinned) {
+  if (!isEnabled) {
     return null;
   }
 

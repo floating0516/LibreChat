@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import * as Ariakit from '@ariakit/react';
-import { TooltipAnchor, DropdownPopup, PinIcon, VectorIcon } from '@librechat/client';
-import { Globe, ScrollText, Settings, Settings2, TerminalSquareIcon } from 'lucide-react';
+import { TooltipAnchor, DropdownPopup, VectorIcon } from '@librechat/client';
+import { Check, Globe, ScrollText, Settings, Settings2, TerminalSquareIcon } from 'lucide-react';
 import type { MenuItemProps } from '~/common';
 import {
   AuthType,
@@ -19,6 +19,18 @@ import { cn } from '~/utils';
 
 interface ToolsDropdownProps {
   disabled?: boolean;
+}
+
+function ToolSelectionIndicator({ selected }: { selected: boolean }) {
+  return (
+    <span
+      aria-hidden="true"
+      data-testid="tools-menu-selection"
+      className="flex size-4 shrink-0 items-center justify-center text-text-primary"
+    >
+      {selected && <Check className="size-4" strokeWidth={2.5} />}
+    </span>
+  );
 }
 
 const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
@@ -68,15 +80,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
 
   const { setIsDialogOpen: setIsSearchDialogOpen, menuTriggerRef: searchMenuTriggerRef } =
     searchApiKeyForm ?? {};
-  const {
-    isPinned: isSearchPinned,
-    setIsPinned: setIsSearchPinned,
-    authData: webSearchAuthData,
-  } = webSearch ?? {};
-  const { isPinned: isCodePinned, setIsPinned: setIsCodePinned } = codeInterpreter ?? {};
-  const { isPinned: isFileSearchPinned, setIsPinned: setIsFileSearchPinned } = fileSearch ?? {};
-  const { isPinned: isArtifactsPinned, setIsPinned: setIsArtifactsPinned } = artifacts ?? {};
-  const { isPinned: isSkillsPinned, setIsPinned: setIsSkillsPinned } = skills ?? {};
+  const { authData: webSearchAuthData } = webSearch ?? {};
 
   const showWebSearchSettings = useMemo(() => {
     const authTypes = webSearchAuthData?.authTypes ?? [];
@@ -136,41 +140,29 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   const dropdownItems: MenuItemProps[] = [];
 
   if (fileSearchEnabled && canUseFileSearch) {
+    const isSelected = fileSearch?.toggleState === true;
     dropdownItems.push({
       onClick: handleFileSearchToggle,
       hideOnClick: false,
+      ariaChecked: isSelected,
       render: (props) => (
         <div {...props}>
           <div className="flex items-center gap-2">
             <VectorIcon className="icon-md" />
             <span>{localize('com_assistants_file_search')}</span>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsFileSearchPinned?.(!isFileSearchPinned);
-            }}
-            className={cn(
-              'rounded p-1 transition-all duration-200',
-              'hover:bg-surface-secondary hover:shadow-sm',
-              !isFileSearchPinned && 'text-text-secondary hover:text-text-primary',
-            )}
-            aria-label={isFileSearchPinned ? 'Unpin' : 'Pin'}
-          >
-            <div className="h-4 w-4">
-              <PinIcon unpin={isFileSearchPinned} />
-            </div>
-          </button>
+          <ToolSelectionIndicator selected={isSelected} />
         </div>
       ),
     });
   }
 
   if (canUseWebSearch && webSearchEnabled) {
+    const isSelected = webSearch?.toggleState === true;
     dropdownItems.push({
       onClick: handleWebSearchToggle,
       hideOnClick: false,
+      ariaChecked: isSelected,
       render: (props) => (
         <div {...props}>
           <div className="flex items-center gap-2">
@@ -190,7 +182,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
                   'hover:bg-surface-secondary hover:shadow-sm',
                   'text-text-secondary hover:text-text-primary',
                 )}
-                aria-label="Configure web search"
+                aria-label={`${localize('com_ui_configure')}: ${localize('com_ui_web_search')}`}
                 ref={searchMenuTriggerRef}
               >
                 <div className="h-4 w-4">
@@ -198,23 +190,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
                 </div>
               </button>
             )}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsSearchPinned?.(!isSearchPinned);
-              }}
-              className={cn(
-                'rounded p-1 transition-all duration-200',
-                'hover:bg-surface-secondary hover:shadow-sm',
-                !isSearchPinned && 'text-text-secondary hover:text-text-primary',
-              )}
-              aria-label={isSearchPinned ? 'Unpin' : 'Pin'}
-            >
-              <div className="h-4 w-4">
-                <PinIcon unpin={isSearchPinned} />
-              </div>
-            </button>
+            <ToolSelectionIndicator selected={isSelected} />
           </div>
         </div>
       ),
@@ -222,80 +198,50 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
   }
 
   if (canUseSkills && skillsEnabled) {
+    const isSelected = skills?.toggleState === true;
     dropdownItems.push({
       onClick: handleSkillsToggle,
       hideOnClick: false,
+      ariaChecked: isSelected,
       render: (props) => (
         <div {...props} data-testid="tools-menu-skills">
           <div className="flex items-center gap-2">
             <ScrollText className="icon-md" aria-hidden="true" />
             <span>{localize('com_ui_skills')}</span>
           </div>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsSkillsPinned?.(!isSkillsPinned);
-            }}
-            className={cn(
-              'rounded p-1 transition-all duration-200',
-              'hover:bg-surface-secondary hover:shadow-sm',
-              !isSkillsPinned && 'text-text-secondary hover:text-text-primary',
-            )}
-            aria-label={isSkillsPinned ? localize('com_ui_unpin') : localize('com_ui_pin')}
-          >
-            <div className="h-4 w-4">
-              <PinIcon unpin={isSkillsPinned} />
-            </div>
-          </button>
+          <ToolSelectionIndicator selected={isSelected} />
         </div>
       ),
     });
   }
 
   if (canRunCode && codeEnabled) {
+    const isSelected = codeInterpreter?.toggleState === true;
     dropdownItems.push({
       onClick: handleCodeInterpreterToggle,
       hideOnClick: false,
+      ariaChecked: isSelected,
       render: (props) => (
         <div {...props}>
           <div className="flex items-center gap-2">
             <TerminalSquareIcon className="icon-md" aria-hidden="true" />
             <span>{localize('com_ui_run_code')}</span>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsCodePinned?.(!isCodePinned);
-              }}
-              className={cn(
-                'rounded p-1 transition-all duration-200',
-                'hover:bg-surface-secondary hover:shadow-sm',
-                !isCodePinned && 'text-text-primary hover:text-text-primary',
-              )}
-              aria-label={isCodePinned ? 'Unpin' : 'Pin'}
-            >
-              <div className="h-4 w-4">
-                <PinIcon unpin={isCodePinned} />
-              </div>
-            </button>
-          </div>
+          <ToolSelectionIndicator selected={isSelected} />
         </div>
       ),
     });
   }
 
-  if (artifactsEnabled && setIsArtifactsPinned != null) {
+  if (artifactsEnabled) {
+    const artifactsMode = artifacts?.toggleState as string;
     dropdownItems.push({
       hideOnClick: false,
+      ariaChecked: Boolean(artifactsMode),
       render: (props) => (
         <ArtifactsSubMenu
           {...props}
-          isArtifactsPinned={isArtifactsPinned ?? false}
-          setIsArtifactsPinned={setIsArtifactsPinned}
-          artifactsMode={artifacts?.toggleState as string}
+          artifactsMode={artifactsMode}
           handleArtifactsToggle={handleArtifactsToggle}
           handleShadcnToggle={handleShadcnToggle}
           handleCustomToggle={handleCustomToggle}
@@ -304,10 +250,11 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
     });
   }
 
-  const { availableMCPServers } = mcpServerManager ?? {};
+  const { availableMCPServers, mcpValues } = mcpServerManager ?? {};
   if (canUseMcp && availableMCPServers && availableMCPServers.length > 0) {
     dropdownItems.push({
       hideOnClick: false,
+      ariaChecked: (mcpValues?.length ?? 0) > 0,
       render: (props) => <MCPSubMenu {...props} placeholder={mcpPlaceholder} />,
     });
   }
@@ -322,7 +269,7 @@ const ToolsDropdown = ({ disabled }: ToolsDropdownProps) => {
         <Ariakit.MenuButton
           disabled={isDisabled}
           id="tools-dropdown-button"
-          aria-label="Tools Options"
+          aria-label={localize('com_ui_tools')}
           className={cn(
             'flex size-9 items-center justify-center rounded-full p-1 hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-opacity-50',
             isPopoverActive && 'bg-surface-hover',

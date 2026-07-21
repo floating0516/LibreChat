@@ -8,28 +8,26 @@ import { useBadgeRowContext } from '~/Providers';
 function CodeInterpreter() {
   const localize = useLocalize();
   const context = useBadgeRowContext();
-  const { toggleState: runCode, debouncedChange, isPinned } = context?.codeInterpreter ?? {};
+  const { toggleState: runCode, debouncedChange } = context?.codeInterpreter ?? {};
 
   const canRunCode = useHasAccess({
     permissionType: PermissionTypes.RUN_CODE,
     permission: Permissions.USE,
   });
 
-  if (!canRunCode) {
+  if (!canRunCode || !runCode) {
     return null;
   }
 
   return (
-    (runCode || isPinned) && (
-      <CheckboxButton
-        className="max-w-fit"
-        checked={runCode}
-        setValue={debouncedChange}
-        label={localize('com_ui_run_code')}
-        isCheckedClassName="border-purple-600/40 bg-purple-500/10 hover:bg-purple-700/10"
-        icon={<TerminalSquareIcon className="icon-md" aria-hidden="true" />}
-      />
-    )
+    <CheckboxButton
+      className="max-w-fit"
+      checked={runCode}
+      setValue={debouncedChange}
+      label={localize('com_ui_run_code')}
+      isCheckedClassName="border-purple-600/40 bg-purple-500/10 hover:bg-purple-700/10"
+      icon={<TerminalSquareIcon className="icon-md" aria-hidden="true" />}
+    />
   );
 }
 

@@ -5,12 +5,10 @@ import { render, screen, within } from '@testing-library/react';
 import MCPSubMenu from '../MCPSubMenu';
 
 const mockToggleServerSelection = jest.fn();
-const mockSetIsPinned = jest.fn();
 
 const defaultMcpServerManager = {
   isPinned: true,
   mcpValues: [] as string[],
-  setIsPinned: mockSetIsPinned,
   placeholderText: 'MCP Servers',
   selectableServers: [
     { serverName: 'server-a', config: { title: 'Server A' } },
@@ -33,7 +31,8 @@ jest.mock('~/Providers', () => ({
 }));
 
 jest.mock('~/hooks', () => ({
-  useLocalize: () => (key: string) => key,
+  useLocalize: () => (key: string, values?: Record<number, number>) =>
+    key === 'com_ui_x_selected' ? `${values?.[0]} selected` : key,
   useHasAccess: () => true,
 }));
 
@@ -42,8 +41,6 @@ jest.mock('@librechat/client', () => {
   const R = require('react');
   return {
     MCPIcon: ({ className }: { className?: string }) => R.createElement('span', { className }),
-    PinIcon: ({ unpin }: { unpin?: boolean }) =>
-      R.createElement('span', { 'data-testid': unpin ? 'unpin-icon' : 'pin-icon' }),
     Spinner: ({ className }: { className?: string }) => R.createElement('span', { className }),
   };
 });
@@ -80,27 +77,30 @@ describe('MCPSubMenu', () => {
   it('renders nothing when selectableServers is empty', () => {
     mockMcpServerManager = { ...defaultMcpServerManager, selectableServers: [] };
     renderSubMenu();
-    expect(screen.queryByText('MCP Servers')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tools-menu-advanced')).not.toBeInTheDocument();
   });
 
-  it('renders the submenu trigger with default placeholder', () => {
+  it('renders MCP behind the advanced trigger', () => {
     renderSubMenu();
-    expect(screen.getByText('MCP Servers')).toBeInTheDocument();
+    const trigger = screen.getByTestId('tools-menu-advanced');
+    expect(trigger).toHaveTextContent('com_ui_advanced');
+    expect(trigger).toHaveAccessibleName('com_ui_advanced: MCP Servers');
   });
 
-  it('renders custom placeholder when provided', () => {
+  it('uses the custom placeholder in the accessible label', () => {
     renderSubMenu({ placeholder: 'Custom Label' });
-    expect(screen.getByText('Custom Label')).toBeInTheDocument();
-    expect(screen.queryByText('MCP Servers')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tools-menu-advanced')).toHaveAccessibleName(
+      'com_ui_advanced: Custom Label',
+    );
   });
 
   it('opens submenu and shows real server items', async () => {
     const user = userEvent.setup();
     renderSubMenu();
 
-    await user.click(screen.getByText('MCP Servers'));
+    await user.click(screen.getByTestId('tools-menu-advanced'));
 
-    const menu = screen.getByRole('menu', { name: /com_ui_mcp_servers/i });
+    const menu = screen.getByRole('menu', { name: /MCP Servers/i });
     expect(menu).toBeVisible();
     expect(within(menu).getByRole('menuitemcheckbox', { name: /Server A/i })).toBeInTheDocument();
     expect(within(menu).getByRole('menuitemcheckbox', { name: /Server B/i })).toBeInTheDocument();
@@ -110,28 +110,30 @@ describe('MCPSubMenu', () => {
     const user = userEvent.setup();
     renderSubMenu();
 
-    await user.click(screen.getByText('MCP Servers'));
+    await user.click(screen.getByTestId('tools-menu-advanced'));
     await user.click(screen.getByRole('menuitemcheckbox', { name: /Server A/i }));
 
     expect(mockToggleServerSelection).toHaveBeenCalledWith('server-a');
-    expect(screen.getByRole('menu', { name: /com_ui_mcp_servers/i })).toBeVisible();
+    expect(screen.getByRole('menu', { name: /MCP Servers/i })).toBeVisible();
   });
 
-  it('calls setIsPinned with toggled value when pin button is clicked', async () => {
-    const user = userEvent.setup();
-    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: false };
+  it('shows the selected server count without pin controls', () => {
+    mockMcpServerManager = {
+      ...defaultMcpServerManager,
+      mcpValues: ['server-a'],
+    };
     renderSubMenu();
 
-    await user.click(screen.getByRole('button', { name: /com_ui_pin/i }));
-
-    expect(mockSetIsPinned).toHaveBeenCalledWith(true);
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /com_ui_(un)?pin/i })).not.toBeInTheDocument();
+    expect(screen.getByTestId('tools-menu-selection').querySelector('svg')).not.toBeNull();
   });
 
   it('arrow-key navigation wraps from last item to first', async () => {
     const user = userEvent.setup();
     renderSubMenu();
 
-    await user.click(screen.getByText('MCP Servers'));
+    await user.click(screen.getByTestId('tools-menu-advanced'));
     const items = screen.getAllByRole('menuitemcheckbox');
     expect(items).toHaveLength(2);
 
@@ -140,17 +142,5 @@ describe('MCPSubMenu', () => {
 
     await user.keyboard('{ArrowDown}');
     expect(items[0]).toHaveFocus();
-  });
-
-  it('pin button shows unpin label when pinned', () => {
-    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: true };
-    renderSubMenu();
-    expect(screen.getByRole('button', { name: /com_ui_unpin/i })).toBeInTheDocument();
-  });
-
-  it('pin button shows pin label when not pinned', () => {
-    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: false };
-    renderSubMenu();
-    expect(screen.getByRole('button', { name: /com_ui_pin/i })).toBeInTheDocument();
   });
 });

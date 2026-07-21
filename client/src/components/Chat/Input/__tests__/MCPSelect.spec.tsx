@@ -8,7 +8,7 @@ const mockToggleServerSelection = jest.fn();
 const defaultMcpServerManager = {
   localize: (key: string) => key,
   isPinned: true,
-  mcpValues: [] as string[],
+  mcpValues: ['server-a'] as string[],
   placeholderText: 'MCP Servers',
   selectableServers: [
     { serverName: 'server-a', config: { title: 'Server A' } },
@@ -67,14 +67,14 @@ describe('MCPSelect', () => {
 
   it('renders the menu button', () => {
     render(<MCPSelect />);
-    expect(screen.getByRole('button', { name: /MCP Servers/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Server A/i })).toBeInTheDocument();
   });
 
   it('opens menu on button click and shows server items', async () => {
     const user = userEvent.setup();
     render(<MCPSelect />);
 
-    await user.click(screen.getByRole('button', { name: /MCP Servers/i }));
+    await user.click(screen.getByRole('button', { name: /Server A/i }));
 
     const menu = screen.getByRole('menu', { name: /com_ui_mcp_servers/i });
     expect(menu).toBeVisible();
@@ -86,11 +86,11 @@ describe('MCPSelect', () => {
     const user = userEvent.setup();
     render(<MCPSelect />);
 
-    await user.click(screen.getByRole('button', { name: /MCP Servers/i }));
+    await user.click(screen.getByRole('button', { name: /Server A/i }));
     expect(screen.getByRole('menu', { name: /com_ui_mcp_servers/i })).toBeVisible();
 
     await user.keyboard('{Escape}');
-    expect(screen.getByRole('button', { name: /MCP Servers/i })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /Server A/i })).toHaveAttribute(
       'aria-expanded',
       'false',
     );
@@ -100,7 +100,7 @@ describe('MCPSelect', () => {
     const user = userEvent.setup();
     render(<MCPSelect />);
 
-    await user.click(screen.getByRole('button', { name: /MCP Servers/i }));
+    await user.click(screen.getByRole('button', { name: /Server A/i }));
     await user.click(screen.getByRole('menuitemcheckbox', { name: /Server A/i }));
 
     expect(mockToggleServerSelection).toHaveBeenCalledWith('server-a');
@@ -111,7 +111,7 @@ describe('MCPSelect', () => {
     const user = userEvent.setup();
     render(<MCPSelect />);
 
-    await user.click(screen.getByRole('button', { name: /MCP Servers/i }));
+    await user.click(screen.getByRole('button', { name: /Server A/i }));
     const items = screen.getAllByRole('menuitemcheckbox');
     expect(items).toHaveLength(2);
 
@@ -134,9 +134,15 @@ describe('MCPSelect', () => {
     expect(container.firstChild).toBeNull();
   });
 
-  it('renders nothing when not pinned and no servers selected', () => {
-    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: false, mcpValues: [] };
+  it('renders nothing when no servers are selected, even with a legacy pin preference', () => {
+    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: true, mcpValues: [] };
     const { container } = render(<MCPSelect />);
     expect(container.firstChild).toBeNull();
+  });
+
+  it('renders selected servers without relying on a pin preference', () => {
+    mockMcpServerManager = { ...defaultMcpServerManager, isPinned: false };
+    render(<MCPSelect />);
+    expect(screen.getByRole('button', { name: /Server A/i })).toBeInTheDocument();
   });
 });

@@ -11,9 +11,7 @@ interface:
     create: false
     share: false
     public: false
-  defaultPinnedTools:
-    - 'web_search'
-    - 'mcp'
+  defaultPinnedTools: []
 
 webSearch:
   searchProvider: tavily

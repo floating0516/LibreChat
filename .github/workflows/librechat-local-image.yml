@@ -62,6 +62,10 @@ jobs:
             echo "::error::Dockerfile.local does not default to $version."
             exit 1
           fi
+          if ! grep -Fqx '  defaultPinnedTools: []' deployment/librechat.yaml; then
+            echo '::error::Composer tools must not be pinned by default.'
+            exit 1
+          fi
 
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           image="ghcr.io/${owner}/librechat-local:${version}"
@@ -264,6 +268,8 @@ jobs:
               test -f /app/packages/data-schemas/dist/index.cjs
               test -f /app/api/server/routes/lihe.js
               test -f /app/api/server/socialLogins.js
+              test -f /app/client/src/components/Chat/Input/ToolsDropdown.tsx
+              test -f /app/client/src/components/Chat/Input/TokenUsage/index.tsx
               test ! -e /tmp/librechat-build
               test ! -e /tmp/librechat-patches
               test ! -L /app/client/node_modules/vite
@@ -273,6 +279,22 @@ jobs:
               grep -Rql "Noto Serif SC" /app/client/dist/assets/*.css
               grep -Rql "Noto Sans SC" /app/client/dist/assets/*.css
               grep -Rql "nav-panel-tools" /app/client/dist/assets/*.js
+              grep -Rql "tools-menu-selection" /app/client/dist/assets/*.js
+              grep -Rql "tools-menu-advanced" /app/client/dist/assets/*.js
+              grep -Fq "CONTEXT_USAGE_WARNING_PERCENT = 75" /app/client/src/components/Chat/Input/TokenUsage/index.tsx
+              if grep -Eq "PinIcon|isPinned|setIsPinned" \
+                /app/client/src/components/Chat/Input/ToolsDropdown.tsx \
+                /app/client/src/components/Chat/Input/ArtifactsSubMenu.tsx \
+                /app/client/src/components/Chat/Input/MCPSubMenu.tsx \
+                /app/client/src/components/Chat/Input/WebSearch.tsx \
+                /app/client/src/components/Chat/Input/Skills.tsx \
+                /app/client/src/components/Chat/Input/Artifacts.tsx \
+                /app/client/src/components/Chat/Input/FileSearch.tsx \
+                /app/client/src/components/Chat/Input/CodeInterpreter.tsx \
+                /app/client/src/components/Chat/Input/MCPSelect.tsx; then
+                echo "Composer pin controls or pin-dependent visibility remain in the image." >&2
+                exit 1
+              fi
             '
 
           label="$(docker image inspect "$image_ref" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')"
