@@ -1,6 +1,6 @@
 # LibreChat 本机部署计划
 
-此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.20`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
+此目录从 LibreChat 官方 GitHub 仓库的已验证 `v0.8.7` 标签取得，源码提交为 `9e74cc0e57b395926122bd4062c1fcedc48ed465`。本地版本采用“官方三段版本 + 本地修订号”，当前待发布版本为 `v0.8.7.21`；版本与官方镜像 digest 集中记录在 `deployment/version.env`。运行时以官方同版本、同一 AMD64 manifest digest 的镜像为基础，而不是 `latest`。
 
 本部署启动三个容器：LibreChat、MongoDB 和官方 Admin Panel。三者使用主机网络，但进程分别只绑定 `127.0.0.1:3080`、`127.0.0.1:27017` 与 `127.0.0.1:3000`，不会监听公网，也不会修改 DNS、Tunnel、Nginx 或现有的 `80/443` 服务。
 
@@ -78,7 +78,9 @@ ssh -N -L 3080:127.0.0.1:3080 -L 3000:127.0.0.1:3000 ubuntu@SERVER_IP
 
 `v0.8.7.19` 简化输入区工具体验：工具菜单移除固定与取消固定操作，以稳定勾选标记显示启用状态；输入区仅展示实际启用的网页搜索、Skills、Artifacts、文件搜索、代码执行和已选择的 MCP 服务器，旧浏览器残留的固定偏好不再造成额外标签。MCP 服务器选择收进菜单末尾的“进阶”入口，并保留服务器状态、用户变量配置和完整管理能力。Token 用量在常规对话中隐藏，仅在上下文达到 75% 时提示；管理员明确启用费用显示时仍保持可见。模型感知的推理强度控制保持不变。
 
-待发布的 `v0.8.7.20` 把成对的普通模型与 `-thinking` 模型合并为一个选择项，并在输入框语音按钮左侧使用“深度思考”开关路由实际模型 ID；只有两个 ID 同时存在时才启用，历史会话和后续选模都从真实模型 ID 恢复状态，生成过程中禁止切换。Lihe 一键导入协议同时新增 `grok` Provider，把专用 Token 以 OpenAI 兼容格式写入固定的 `Grok` 自定义端点，支持状态检查、单独断开和旧 Key 恢复；生产启用此版本时需把 `LIHE_CONNECT_PROVIDERS` 同步设为 `openAI,anthropic,grok`。
+`v0.8.7.20` 把成对的普通模型与 `-thinking` 模型合并为一个选择项，并在输入框语音按钮左侧使用“深度思考”开关路由实际模型 ID；只有两个 ID 同时存在时才启用，历史会话和后续选模都从真实模型 ID 恢复状态，生成过程中禁止切换。Lihe 一键导入协议同时新增 `grok` Provider，把专用 Token 以 OpenAI 兼容格式写入固定的 `Grok` 自定义端点，支持状态检查、单独断开和旧 Key 恢复。该版本的 GHCR 镜像已生成，但因基础镜像加独立 `COPY` 达到 Docker 125 层上限而未通过拉取验收，也未部署。
+
+待发布的 `v0.8.7.21` 保留上述 Thinking 与 Grok 功能，并把相同源码目录的 Docker `COPY` 合并，使最终镜像远低于层数上限；生产启用此版本时需把 `LIHE_CONNECT_PROVIDERS` 同步设为 `openAI,anthropic,grok`。
 
 官方升级时，先把新官方代码合并到本地定制分支并解决冲突，再把 `LIBRECHAT_UPSTREAM_VERSION` 和 `LIBRECHAT_BASE_DIGEST` 更新到已验证的新发布，把 `LIBRECHAT_LOCAL_REVISION` 重置为 `1`，完成构建与健康检查后再部署。
 

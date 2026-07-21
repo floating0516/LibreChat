@@ -4,76 +4,106 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.20
+ARG LIBRECHAT_VERSION=v0.8.7.21
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
-COPY --chown=node:node scripts/langchain/patch.cjs /tmp/librechat-patches/langchain/patch.cjs
-COPY --chown=node:node scripts/langchain/verify.cjs /tmp/librechat-patches/langchain/verify.cjs
+COPY --chown=node:node \
+  scripts/langchain/patch.cjs \
+  scripts/langchain/verify.cjs \
+  /tmp/librechat-patches/langchain/
 COPY --chown=node:node api/server/services/Config/loadDefaultModels.js /app/api/server/services/Config/loadDefaultModels.js
-COPY --chown=node:node api/server/controllers/ModelController.js /app/api/server/controllers/ModelController.js
-COPY --chown=node:node api/server/routes/lihe.js /app/api/server/routes/lihe.js
-COPY --chown=node:node api/server/routes/auth.js /app/api/server/routes/auth.js
-COPY --chown=node:node api/server/routes/config.js /app/api/server/routes/config.js
-COPY --chown=node:node api/server/routes/oauth.js /app/api/server/routes/oauth.js
-COPY --chown=node:node api/server/routes/index.js /app/api/server/routes/index.js
-COPY --chown=node:node api/server/socialLogins.js /app/api/server/socialLogins.js
-COPY --chown=node:node api/server/controllers/UserController.js /app/api/server/controllers/UserController.js
+COPY --chown=node:node \
+  api/server/controllers/ModelController.js \
+  api/server/controllers/UserController.js \
+  /app/api/server/controllers/
+COPY --chown=node:node \
+  api/server/routes/lihe.js \
+  api/server/routes/auth.js \
+  api/server/routes/config.js \
+  api/server/routes/oauth.js \
+  api/server/routes/index.js \
+  /app/api/server/routes/
+COPY --chown=node:node \
+  api/server/socialLogins.js \
+  api/server/index.js \
+  api/server/experimental.js \
+  /app/api/server/
 COPY --chown=node:node api/strategies/openidStrategy.js /app/api/strategies/openidStrategy.js
-COPY --chown=node:node api/server/index.js /app/api/server/index.js
-COPY --chown=node:node api/server/experimental.js /app/api/server/experimental.js
 COPY --chown=node:node packages/api/src/endpoints/models.ts /app/packages/api/src/endpoints/models.ts
 COPY --chown=node:node packages/api/src/endpoints/config/models.ts /app/packages/api/src/endpoints/config/models.ts
 COPY --chown=node:node packages/api/src/index.ts /app/packages/api/src/index.ts
-COPY --chown=node:node packages/api/src/auth/index.ts /app/packages/api/src/auth/index.ts
-COPY --chown=node:node packages/api/src/auth/openidAccess.ts /app/packages/api/src/auth/openidAccess.ts
-COPY --chown=node:node packages/api/src/auth/link.ts /app/packages/api/src/auth/link.ts
-COPY --chown=node:node packages/api/src/lihe/client.ts /app/packages/api/src/lihe/client.ts
-COPY --chown=node:node packages/api/src/lihe/config.ts /app/packages/api/src/lihe/config.ts
-COPY --chown=node:node packages/api/src/lihe/handlers.ts /app/packages/api/src/lihe/handlers.ts
-COPY --chown=node:node packages/api/src/lihe/index.ts /app/packages/api/src/lihe/index.ts
-COPY --chown=node:node packages/api/src/lihe/security.ts /app/packages/api/src/lihe/security.ts
-COPY --chown=node:node packages/api/src/lihe/storage.ts /app/packages/api/src/lihe/storage.ts
+COPY --chown=node:node \
+  packages/api/src/auth/index.ts \
+  packages/api/src/auth/openidAccess.ts \
+  packages/api/src/auth/link.ts \
+  /app/packages/api/src/auth/
+COPY --chown=node:node \
+  packages/api/src/lihe/client.ts \
+  packages/api/src/lihe/config.ts \
+  packages/api/src/lihe/handlers.ts \
+  packages/api/src/lihe/index.ts \
+  packages/api/src/lihe/security.ts \
+  packages/api/src/lihe/storage.ts \
+  /app/packages/api/src/lihe/
 COPY --chown=node:node packages/api/src/oauth/callback.ts /app/packages/api/src/oauth/callback.ts
-COPY --chown=node:node packages/api/src/utils/sanitizeTitle.ts /app/packages/api/src/utils/sanitizeTitle.ts
-COPY --chown=node:node packages/api/src/utils/oidc.ts /app/packages/api/src/utils/oidc.ts
+COPY --chown=node:node \
+  packages/api/src/utils/sanitizeTitle.ts \
+  packages/api/src/utils/oidc.ts \
+  /app/packages/api/src/utils/
 COPY --chown=node:node packages/api/src/shared-links/config.ts /app/packages/api/src/shared-links/config.ts
-COPY --chown=node:node packages/data-schemas/src/types/index.ts /app/packages/data-schemas/src/types/index.ts
-COPY --chown=node:node packages/data-schemas/src/types/openid.ts /app/packages/data-schemas/src/types/openid.ts
+COPY --chown=node:node \
+  packages/data-schemas/src/types/index.ts \
+  packages/data-schemas/src/types/openid.ts \
+  /app/packages/data-schemas/src/types/
 COPY --chown=node:node packages/data-schemas/src/schema/index.ts /app/packages/data-schemas/src/schema/index.ts
 COPY --chown=node:node packages/data-schemas/src/schema/openid/tombstone.ts /app/packages/data-schemas/src/schema/openid/tombstone.ts
 COPY --chown=node:node packages/data-schemas/src/models/index.ts /app/packages/data-schemas/src/models/index.ts
 COPY --chown=node:node packages/data-schemas/src/models/openid/tombstone.ts /app/packages/data-schemas/src/models/openid/tombstone.ts
-COPY --chown=node:node packages/data-schemas/src/methods/index.ts /app/packages/data-schemas/src/methods/index.ts
-COPY --chown=node:node packages/data-schemas/src/methods/openid.ts /app/packages/data-schemas/src/methods/openid.ts
-COPY --chown=node:node packages/data-provider/src/api-endpoints.ts /app/packages/data-provider/src/api-endpoints.ts
-COPY --chown=node:node packages/data-provider/src/config.ts /app/packages/data-provider/src/config.ts
-COPY --chown=node:node packages/data-provider/src/data-service.ts /app/packages/data-provider/src/data-service.ts
-COPY --chown=node:node packages/data-provider/src/keys.ts /app/packages/data-provider/src/keys.ts
-COPY --chown=node:node packages/data-provider/src/models.ts /app/packages/data-provider/src/models.ts
-COPY --chown=node:node packages/data-provider/src/schemas.ts /app/packages/data-provider/src/schemas.ts
-COPY --chown=node:node packages/data-provider/src/types.ts /app/packages/data-provider/src/types.ts
+COPY --chown=node:node \
+  packages/data-schemas/src/methods/index.ts \
+  packages/data-schemas/src/methods/openid.ts \
+  /app/packages/data-schemas/src/methods/
+COPY --chown=node:node \
+  packages/data-provider/src/api-endpoints.ts \
+  packages/data-provider/src/config.ts \
+  packages/data-provider/src/data-service.ts \
+  packages/data-provider/src/keys.ts \
+  packages/data-provider/src/models.ts \
+  packages/data-provider/src/schemas.ts \
+  packages/data-provider/src/types.ts \
+  packages/data-provider/src/parameterSettings.ts \
+  /app/packages/data-provider/src/
 COPY --chown=node:node packages/data-provider/src/types/lihe.ts /app/packages/data-provider/src/types/lihe.ts
-COPY --chown=node:node packages/data-provider/src/parameterSettings.ts /app/packages/data-provider/src/parameterSettings.ts
 COPY --chown=node:node client/src/data-provider/index.ts /app/client/src/data-provider/index.ts
-COPY --chown=node:node client/src/data-provider/Lihe/index.ts /app/client/src/data-provider/Lihe/index.ts
-COPY --chown=node:node client/src/data-provider/Lihe/mutations.ts /app/client/src/data-provider/Lihe/mutations.ts
-COPY --chown=node:node client/src/data-provider/Lihe/queries.ts /app/client/src/data-provider/Lihe/queries.ts
-COPY --chown=node:node client/src/App.jsx /app/client/src/App.jsx
-COPY --chown=node:node client/src/main.jsx /app/client/src/main.jsx
-COPY --chown=node:node client/src/appearance.css /app/client/src/appearance.css
-COPY --chown=node:node client/src/Providers/AppearanceContext.tsx /app/client/src/Providers/AppearanceContext.tsx
-COPY --chown=node:node client/src/Providers/index.ts /app/client/src/Providers/index.ts
-COPY --chown=node:node client/src/components/Lihe/Connect.tsx /app/client/src/components/Lihe/Connect.tsx
-COPY --chown=node:node client/src/components/Lihe/ConnectionRow.tsx /app/client/src/components/Lihe/ConnectionRow.tsx
-COPY --chown=node:node client/src/components/Lihe/AccountLinkResult.tsx /app/client/src/components/Lihe/AccountLinkResult.tsx
-COPY --chown=node:node client/src/components/Lihe/index.ts /app/client/src/components/Lihe/index.ts
+COPY --chown=node:node \
+  client/src/data-provider/Lihe/index.ts \
+  client/src/data-provider/Lihe/mutations.ts \
+  client/src/data-provider/Lihe/queries.ts \
+  /app/client/src/data-provider/Lihe/
+COPY --chown=node:node \
+  client/src/App.jsx \
+  client/src/main.jsx \
+  client/src/appearance.css \
+  /app/client/src/
+COPY --chown=node:node \
+  client/src/Providers/AppearanceContext.tsx \
+  client/src/Providers/index.ts \
+  /app/client/src/Providers/
+COPY --chown=node:node \
+  client/src/components/Lihe/Connect.tsx \
+  client/src/components/Lihe/ConnectionRow.tsx \
+  client/src/components/Lihe/AccountLinkResult.tsx \
+  client/src/components/Lihe/index.ts \
+  /app/client/src/components/Lihe/
 COPY --chown=node:node client/src/components/Nav/SettingsTabs/Account/OpenIdAccountLink.tsx /app/client/src/components/Nav/SettingsTabs/Account/OpenIdAccountLink.tsx
 COPY --chown=node:node client/src/components/Nav/SettingsTabs/ProviderKeys/ProviderKeys.tsx /app/client/src/components/Nav/SettingsTabs/ProviderKeys/ProviderKeys.tsx
-COPY --chown=node:node client/src/components/Nav/Settings/context.tsx /app/client/src/components/Nav/Settings/context.tsx
-COPY --chown=node:node client/src/components/Nav/Settings/registry.tsx /app/client/src/components/Nav/Settings/registry.tsx
-COPY --chown=node:node client/src/components/Nav/Settings/types.ts /app/client/src/components/Nav/Settings/types.ts
-COPY --chown=node:node client/src/components/Nav/Settings/controls.tsx /app/client/src/components/Nav/Settings/controls.tsx
+COPY --chown=node:node \
+  client/src/components/Nav/Settings/context.tsx \
+  client/src/components/Nav/Settings/registry.tsx \
+  client/src/components/Nav/Settings/types.ts \
+  client/src/components/Nav/Settings/controls.tsx \
+  /app/client/src/components/Nav/Settings/
 COPY --chown=node:node client/src/components/Nav/SettingsTabs/General/Selectors.tsx /app/client/src/components/Nav/SettingsTabs/General/Selectors.tsx
 COPY --chown=node:node client/src/components/UnifiedSidebar/ExpandedPanel.tsx /app/client/src/components/UnifiedSidebar/ExpandedPanel.tsx
 COPY --chown=node:node client/src/data-provider/Auth/mutations.ts /app/client/src/data-provider/Auth/mutations.ts
@@ -83,34 +113,39 @@ COPY --chown=node:node client/src/components/Auth/AuthLayout.tsx /app/client/src
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
 COPY --chown=node:node client/src/utils/thinking.ts /app/client/src/utils/thinking.ts
 COPY --chown=node:node client/src/components/Chat/Menus/Endpoints/ModelSelectorContext.tsx /app/client/src/components/Chat/Menus/Endpoints/ModelSelectorContext.tsx
-COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
-COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
-COPY --chown=node:node client/src/components/Chat/Input/Artifacts.tsx /app/client/src/components/Chat/Input/Artifacts.tsx
-COPY --chown=node:node client/src/components/Chat/Input/ArtifactsSubMenu.tsx /app/client/src/components/Chat/Input/ArtifactsSubMenu.tsx
-COPY --chown=node:node client/src/components/Chat/Input/ChatForm.tsx /app/client/src/components/Chat/Input/ChatForm.tsx
-COPY --chown=node:node client/src/components/Chat/Input/CodeInterpreter.tsx /app/client/src/components/Chat/Input/CodeInterpreter.tsx
-COPY --chown=node:node client/src/components/Chat/Input/FileSearch.tsx /app/client/src/components/Chat/Input/FileSearch.tsx
-COPY --chown=node:node client/src/components/Chat/Input/MCPSelect.tsx /app/client/src/components/Chat/Input/MCPSelect.tsx
-COPY --chown=node:node client/src/components/Chat/Input/MCPSubMenu.tsx /app/client/src/components/Chat/Input/MCPSubMenu.tsx
-COPY --chown=node:node client/src/components/Chat/Input/ReasoningEffortControl.tsx /app/client/src/components/Chat/Input/ReasoningEffortControl.tsx
-COPY --chown=node:node client/src/components/Chat/Input/Skills.tsx /app/client/src/components/Chat/Input/Skills.tsx
+COPY --chown=node:node \
+  client/src/components/SidePanel/Parameters/DynamicDropdown.tsx \
+  client/src/components/SidePanel/Parameters/Panel.tsx \
+  /app/client/src/components/SidePanel/Parameters/
+COPY --chown=node:node \
+  client/src/components/Chat/Input/Artifacts.tsx \
+  client/src/components/Chat/Input/ArtifactsSubMenu.tsx \
+  client/src/components/Chat/Input/ChatForm.tsx \
+  client/src/components/Chat/Input/CodeInterpreter.tsx \
+  client/src/components/Chat/Input/FileSearch.tsx \
+  client/src/components/Chat/Input/MCPSelect.tsx \
+  client/src/components/Chat/Input/MCPSubMenu.tsx \
+  client/src/components/Chat/Input/ReasoningEffortControl.tsx \
+  client/src/components/Chat/Input/Skills.tsx \
+  client/src/components/Chat/Input/ToolsDropdown.tsx \
+  client/src/components/Chat/Input/WebSearch.tsx \
+  /app/client/src/components/Chat/Input/
 COPY --chown=node:node client/src/components/Chat/Input/TokenUsage/index.tsx /app/client/src/components/Chat/Input/TokenUsage/index.tsx
-COPY --chown=node:node client/src/components/Chat/Input/ToolsDropdown.tsx /app/client/src/components/Chat/Input/ToolsDropdown.tsx
-COPY --chown=node:node client/src/components/Chat/Input/WebSearch.tsx /app/client/src/components/Chat/Input/WebSearch.tsx
 COPY --chown=node:node client/src/components/Chat/Landing.tsx /app/client/src/components/Chat/Landing.tsx
 COPY --chown=node:node client/src/components/Chat/Messages/Message.tsx /app/client/src/components/Chat/Messages/Message.tsx
 COPY --chown=node:node client/src/components/Chat/Messages/ui/MessageRender.tsx /app/client/src/components/Chat/Messages/ui/MessageRender.tsx
 COPY --chown=node:node client/src/locales/en/translation.json /app/client/src/locales/en/translation.json
 COPY --chown=node:node client/src/locales/zh-Hans/translation.json /app/client/src/locales/zh-Hans/translation.json
-COPY --chown=node:node client/index.html /app/client/index.html
-COPY --chown=node:node client/vite.config.ts /app/client/vite.config.ts
-COPY --chown=node:node client/public/assets/logo.svg /app/client/public/assets/logo.svg
-COPY --chown=node:node client/public/assets/favicon-16x16.png /app/client/public/assets/favicon-16x16.png
-COPY --chown=node:node client/public/assets/favicon-32x32.png /app/client/public/assets/favicon-32x32.png
-COPY --chown=node:node client/public/assets/apple-touch-icon-180x180.png /app/client/public/assets/apple-touch-icon-180x180.png
-COPY --chown=node:node client/public/assets/icon-192x192.png /app/client/public/assets/icon-192x192.png
-COPY --chown=node:node client/public/assets/maskable-icon.png /app/client/public/assets/maskable-icon.png
-COPY --chown=node:node client/public/assets/grok.svg /app/client/public/assets/grok.svg
+COPY --chown=node:node client/index.html client/vite.config.ts /app/client/
+COPY --chown=node:node \
+  client/public/assets/logo.svg \
+  client/public/assets/favicon-16x16.png \
+  client/public/assets/favicon-32x32.png \
+  client/public/assets/apple-touch-icon-180x180.png \
+  client/public/assets/icon-192x192.png \
+  client/public/assets/maskable-icon.png \
+  client/public/assets/grok.svg \
+  /app/client/public/assets/
 COPY --chown=node:node client/public/fonts/interface /app/client/public/fonts/interface
 
 USER node
