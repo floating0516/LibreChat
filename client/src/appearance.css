@@ -64,10 +64,10 @@ html[data-interface-style='claude'] {
   --surface-secondary-alt: #e5e0d6 !important;
   --surface-tertiary: #e5e0d6 !important;
   --surface-tertiary-alt: #fff !important;
-  --surface-dialog: #f7f4ec !important;
+  --surface-dialog: #f3efe5 !important;
   --surface-submit: #c96442 !important;
   --surface-submit-hover: #b1573a !important;
-  --surface-chat: #fff !important;
+  --surface-chat: #f7f4ec !important;
   --border-light: #e5e0d6 !important;
   --border-medium-alt: #d9d2c4 !important;
   --border-medium: #d1cabd !important;
@@ -245,10 +245,14 @@ html[data-interface-style='chatgpt'] .chat-composer-form:not([data-maximized='tr
   max-width: 48rem;
 }
 
+html[data-interface-style='claude'] [role='dialog'].bg-background {
+  background: var(--surface-dialog);
+}
+
 html[data-interface-style='claude'] .chat-composer-shell:not([data-temporary='true']) {
   border-color: #e5e0d6;
   border-radius: 1rem;
-  background: #fff;
+  background: var(--surface-chat);
   box-shadow: none;
 }
 
