@@ -17,7 +17,7 @@ const config = {
   clientSecret: 'synthetic-client-secret',
   stateSecret: 'synthetic-state-secret',
   scope: 'models:read chat:write',
-  providers: ['openAI', 'anthropic'],
+  providers: ['openAI', 'anthropic', 'grok'],
   requireOpenIdSubject: false,
   cookiePath: '/api/integrations/lihe',
   resultPath: '/connect/lihe',
@@ -36,7 +36,7 @@ const fetcher = async (input, init) => {
         access_token: integrationToken,
         token_type: 'Bearer',
         scope: 'models:read chat:write',
-        providers: ['openAI', 'anthropic'],
+        providers: ['openAI', 'anthropic', 'grok'],
         expires_in: null,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -60,6 +60,7 @@ const keys = new Map([
     { value: JSON.stringify({ apiKey: 'previous-openai', baseURL: '' }), expiresAt: null },
   ],
   ['anthropic', { value: 'previous-anthropic', expiresAt: null }],
+  ['Grok', { value: JSON.stringify({ apiKey: 'previous-grok', baseURL: '' }), expiresAt: null }],
 ]);
 
 const keyDeps = {
@@ -119,6 +120,7 @@ async function verify() {
     provider.liheDisconnectRequestSchema.safeParse({ provider: 'anthropic' }).success,
     true,
   );
+  assert.equal(provider.liheDisconnectRequestSchema.safeParse({ provider: 'grok' }).success, true);
   assert.equal(
     provider.liheDisconnectRequestSchema.safeParse({ provider: 'unknown' }).success,
     false,
@@ -163,7 +165,7 @@ async function verify() {
     LIHE_CONNECT_API_BASE_URL: 'https://api.lihe.invalid',
     LIHE_CONNECT_CLIENT_ID: 'lihe-chat',
     LIHE_CONNECT_CLIENT_SECRET: 'synthetic-client-secret',
-    LIHE_CONNECT_PROVIDERS: 'openAI,anthropic',
+    LIHE_CONNECT_PROVIDERS: 'openAI,anthropic,grok',
     JWT_SECRET: 'synthetic-jwt-secret',
     DOMAIN_SERVER: 'https://lihe.invalid',
     SESSION_COOKIE_SECURE: 'false',
@@ -252,6 +254,7 @@ async function verify() {
   });
   assert.equal(saved.connection.version, 2);
   assert.equal(provider.liheStoredConnectionSchema.safeParse(saved.connection).success, true);
+  assert.equal(keys.get('Grok').value, JSON.stringify({ apiKey: integrationToken, baseURL: '' }));
   assert.deepEqual(api.getLiheTokensToRevoke(saved.connection, 'anthropic'), []);
 
   const partiallyDisconnected = await api.disconnectLiheConnection({
@@ -261,7 +264,7 @@ async function verify() {
     provider: 'anthropic',
   });
   assert.deepEqual(partiallyDisconnected.disconnectedProviders, ['anthropic']);
-  assert.deepEqual(partiallyDisconnected.remainingProviders, ['openAI']);
+  assert.deepEqual(partiallyDisconnected.remainingProviders, ['openAI', 'grok']);
   assert.equal(keys.get('anthropic').value, 'previous-anthropic');
 
   const added = await api.saveLiheConnection({
@@ -277,7 +280,7 @@ async function verify() {
   assert.deepEqual(added.replacedTokens, []);
   assert.deepEqual(
     added.connection.connections.map((connection) => connection.providers),
-    [['openAI'], ['anthropic']],
+    [['openAI', 'grok'], ['anthropic']],
   );
   const status = await api.getLiheConnectionStatus({
     deps: keyDeps,
@@ -301,12 +304,23 @@ async function verify() {
   assert.equal(keys.get('anthropic').value, 'previous-anthropic');
 
   const remaining = await api.loadLiheConnection(keyDeps, 'synthetic-user');
-  assert.deepEqual(api.getLiheTokensToRevoke(remaining, 'openAI'), [integrationToken]);
+  assert.deepEqual(api.getLiheTokensToRevoke(remaining, 'grok'), []);
+  const grokDisconnected = await api.disconnectLiheConnection({
+    deps: keyDeps,
+    userId: 'synthetic-user',
+    connection: remaining,
+    provider: 'grok',
+  });
+  assert.deepEqual(grokDisconnected.restoredProviders, ['grok']);
+  assert.equal(keys.get('Grok').value, JSON.stringify({ apiKey: 'previous-grok', baseURL: '' }));
+
+  const openAIRemaining = await api.loadLiheConnection(keyDeps, 'synthetic-user');
+  assert.deepEqual(api.getLiheTokensToRevoke(openAIRemaining, 'openAI'), [integrationToken]);
   await api.revokeLiheToken({ config, token: integrationToken, fetcher });
   const disconnected = await api.disconnectLiheConnection({
     deps: keyDeps,
     userId: 'synthetic-user',
-    connection: remaining,
+    connection: openAIRemaining,
     provider: 'openAI',
   });
   assert.deepEqual(disconnected.restoredProviders, ['openAI']);

@@ -11,6 +11,7 @@ const SUPPORTED_PROVIDERS = new Set<TLiheProvider>([
   EModelEndpoint.openAI,
   EModelEndpoint.anthropic,
   EModelEndpoint.google,
+  'grok',
 ]);
 
 export type LiheConfig = {

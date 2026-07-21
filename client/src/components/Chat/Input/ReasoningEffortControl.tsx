@@ -11,7 +11,8 @@ import { useGetModelsQuery } from 'librechat-data-provider/react-query';
 import { TooltipAnchor } from '@librechat/client';
 import type { TranslationKeys } from '~/hooks';
 import { useLocalize, useSetIndexOptions } from '~/hooks';
-import { cn } from '~/utils';
+import { getThinkingModelPair } from '~/utils/thinking';
+import { cn, updateLastSelectedModel } from '~/utils';
 
 const labelKeys: Record<string, TranslationKeys> = {
   '': 'com_ui_auto',
@@ -51,17 +52,30 @@ function ReasoningEffortControl({
   const menuStore = Ariakit.useMenuStore({ placement: 'top-end', focusLoop: true });
   const isOpen = menuStore.useState('open');
   const capabilities = modelsQuery.data?.[modelCapabilitiesSymbol];
-
-  const config = useMemo(
-    () =>
-      getInlineReasoningConfig({
-        endpoint: conversation?.endpoint,
-        endpointType: conversation?.endpointType,
-        model: conversation?.model,
-        capabilities,
-      }),
-    [capabilities, conversation?.endpoint, conversation?.endpointType, conversation?.model],
+  const endpointModels = modelsQuery.data?.[conversation?.endpoint ?? ''];
+  const thinkingPair = useMemo(
+    () => (conversation?.spec ? null : getThinkingModelPair(endpointModels, conversation?.model)),
+    [conversation?.model, conversation?.spec, endpointModels],
   );
+  const thinkingEnabled = thinkingPair?.thinkingModel === conversation?.model;
+
+  const config = useMemo(() => {
+    if (thinkingPair) {
+      return null;
+    }
+    return getInlineReasoningConfig({
+      endpoint: conversation?.endpoint,
+      endpointType: conversation?.endpointType,
+      model: conversation?.model,
+      capabilities,
+    });
+  }, [
+    capabilities,
+    conversation?.endpoint,
+    conversation?.endpointType,
+    conversation?.model,
+    thinkingPair,
+  ]);
 
   const storedValue = config ? getConversationValue(conversation, config.parameter) : undefined;
   const selectedValue =
@@ -106,6 +120,66 @@ function ReasoningEffortControl({
     },
     [config, setOption],
   );
+
+  const handleThinkingToggle = useCallback(() => {
+    if (!thinkingPair || !conversation?.endpoint) {
+      return;
+    }
+    const nextModel = thinkingEnabled ? thinkingPair.model : thinkingPair.thinkingModel;
+    setOption('model')(nextModel);
+    updateLastSelectedModel({ endpoint: conversation.endpoint, model: nextModel });
+  }, [conversation?.endpoint, setOption, thinkingEnabled, thinkingPair]);
+
+  if (thinkingPair) {
+    const controlLabel = localize('com_endpoint_thinking');
+    const stateLabel = localize(thinkingEnabled ? 'com_ui_on' : 'com_ui_off');
+
+    return (
+      <TooltipAnchor
+        description={`${controlLabel}: ${stateLabel}`}
+        render={
+          <button
+            type="button"
+            role="switch"
+            data-testid="thinking-model-toggle"
+            aria-label={`${controlLabel}: ${stateLabel}`}
+            aria-checked={thinkingEnabled}
+            onClick={handleThinkingToggle}
+            disabled={disabled}
+            className={cn(
+              'inline-flex h-9 w-[3.75rem] shrink-0 items-center justify-center gap-1.5 rounded-full',
+              'border border-border-medium bg-transparent px-2 transition-colors',
+              'hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'disabled:pointer-events-none disabled:opacity-50',
+              thinkingEnabled && 'bg-surface-active-alt',
+            )}
+          />
+        }
+      >
+        <Brain
+          className={cn(
+            'h-3.5 w-3.5 shrink-0',
+            thinkingEnabled ? 'text-text-primary' : 'text-text-secondary',
+          )}
+          aria-hidden="true"
+        />
+        <span
+          className={cn(
+            'relative h-4 w-7 shrink-0 rounded-full transition-colors',
+            thinkingEnabled ? 'bg-surface-submit' : 'bg-surface-tertiary',
+          )}
+          aria-hidden="true"
+        >
+          <span
+            className={cn(
+              'absolute left-0.5 top-0.5 size-3 rounded-full bg-white shadow-sm transition-transform',
+              thinkingEnabled && 'translate-x-3',
+            )}
+          />
+        </span>
+      </TooltipAnchor>
+    );
+  }
 
   if (!config) {
     return null;
@@ -159,7 +233,7 @@ function ReasoningEffortControl({
         className={cn(
           'z-[200] flex min-w-40 flex-col rounded-lg border border-border-light bg-presentation p-1 shadow-lg',
           'origin-bottom opacity-0 transition-[opacity,transform] duration-150',
-          'data-[enter]:scale-100 data-[enter]:opacity-100 data-[leave]:scale-95 data-[leave]:opacity-0',
+          'data-[enter]:scale-100 data-[leave]:scale-95 data-[enter]:opacity-100 data-[leave]:opacity-0',
         )}
       >
         {config.options.map((option) => (

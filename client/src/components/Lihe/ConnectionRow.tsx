@@ -31,6 +31,7 @@ const providerLabels: Record<TLiheProvider, string> = {
   openAI: 'OpenAI',
   anthropic: 'Claude',
   google: 'Google',
+  grok: 'Grok',
 };
 
 function providerGroupLabel(providers: TLiheProvider[]): string {

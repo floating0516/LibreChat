@@ -72,6 +72,24 @@ describe('Lihe Connect remote client', () => {
     ).rejects.toMatchObject({ code: 'token_exchange_failed' });
   });
 
+  it('accepts a Grok-scoped integration token', async () => {
+    const fetcher: LiheFetch = async () =>
+      new Response(
+        JSON.stringify({
+          access_token: 'lhc_grok_token_123456789012345',
+          token_type: 'Bearer',
+          scope: 'models:read chat:write',
+          providers: ['grok'],
+          expires_in: null,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+
+    await expect(
+      exchangeLiheCode({ config, code: 'grok-code', verifier: 'v'.repeat(64), fetcher }),
+    ).resolves.toMatchObject({ providers: ['grok'] });
+  });
+
   it('validates models and sends an RFC 7009 revocation request', async () => {
     const requests: Array<{ url: string; init?: RequestInit }> = [];
     const fetcher: LiheFetch = async (input, init) => {

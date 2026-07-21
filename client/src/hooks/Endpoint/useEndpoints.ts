@@ -16,6 +16,7 @@ import type {
   Agent,
 } from 'librechat-data-provider';
 import type { Endpoint } from '~/common';
+import { collapseThinkingModelPairs } from '~/utils/thinking';
 import { useHasAccess, useShowMarketplace } from '~/hooks';
 import { useGetEndpointsQuery } from '~/data-provider';
 import { mapEndpoints, getIconKey } from '~/utils';
@@ -183,7 +184,7 @@ export const useEndpoints = ({
         ep !== EModelEndpoint.assistants &&
         (modelsQuery.data?.[ep]?.length ?? 0) > 0
       ) {
-        result.models = modelsQuery.data?.[ep]?.map((model) => ({
+        result.models = collapseThinkingModelPairs(modelsQuery.data?.[ep] ?? []).map((model) => ({
           name: model,
           isGlobal: false,
         }));
@@ -204,6 +205,7 @@ export const useEndpoints = ({
 
   return {
     mappedEndpoints,
+    modelsConfig: modelsQuery.data,
     endpointRequiresUserKey,
   };
 };

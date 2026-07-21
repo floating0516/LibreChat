@@ -1,5 +1,6 @@
 import {
   liheApiKeyIdSchema,
+  liheTokenResponseSchema,
   liheStartRequestSchema,
   liheDisconnectRequestSchema,
   liheStoredConnectionSchema,
@@ -74,9 +75,22 @@ describe('Lihe API key ID validation', () => {
   it('validates optional provider-specific disconnect requests', () => {
     expect(liheDisconnectRequestSchema.safeParse({}).success).toBe(true);
     expect(liheDisconnectRequestSchema.safeParse({ provider: 'anthropic' }).success).toBe(true);
+    expect(liheDisconnectRequestSchema.safeParse({ provider: 'grok' }).success).toBe(true);
     expect(liheDisconnectRequestSchema.safeParse({ provider: 'unknown' }).success).toBe(false);
     expect(
       liheDisconnectRequestSchema.safeParse({ provider: 'openAI', userId: 'other' }).success,
     ).toBe(false);
+  });
+
+  it('accepts Grok integration tokens as a supported provider', () => {
+    expect(
+      liheTokenResponseSchema.safeParse({
+        access_token: 'lhc_grok_token_123456789012345',
+        token_type: 'Bearer',
+        scope: 'models:read chat:write',
+        providers: ['grok'],
+        expires_in: null,
+      }).success,
+    ).toBe(true);
   });
 });

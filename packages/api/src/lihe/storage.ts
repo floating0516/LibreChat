@@ -36,8 +36,19 @@ export type SaveLiheConnectionResult = {
   replacedTokens: string[];
 };
 
+const providerKeyNames: Record<TLiheProvider, string> = {
+  openAI: EModelEndpoint.openAI,
+  anthropic: EModelEndpoint.anthropic,
+  google: EModelEndpoint.google,
+  grok: 'Grok',
+};
+
+function providerKeyName(provider: TLiheProvider): string {
+  return providerKeyNames[provider];
+}
+
 function formatProviderKey(provider: TLiheProvider, token: string): string {
-  if (provider === EModelEndpoint.openAI) {
+  if (provider === EModelEndpoint.openAI || provider === 'grok') {
     return JSON.stringify({ apiKey: token, baseURL: '' });
   }
   if (provider === EModelEndpoint.google) {
@@ -176,22 +187,25 @@ export async function getLiheConnectionStatus({
 }): Promise<Omit<TLiheConnectionStatus, 'enabled'>> {
   const connection = await loadLiheConnection(deps, userId);
   if (!connection) {
-    const snapshots = await readSnapshots(deps, userId, configuredProviders);
+    const snapshots = await readSnapshots(deps, userId, configuredProviders.map(providerKeyName));
     return {
       connected: false,
       needsReconnect: false,
-      hasExistingKeys: configuredProviders.some((provider) => snapshots.get(provider) != null),
+      hasExistingKeys: configuredProviders.some(
+        (provider) => snapshots.get(providerKeyName(provider)) != null,
+      ),
       providers: configuredProviders,
       connections: [],
     };
   }
 
   const providers = connectionProviders(connection.connections);
-  const snapshots = await readSnapshots(deps, userId, providers);
+  const snapshots = await readSnapshots(deps, userId, providers.map(providerKeyName));
   const connections = connection.connections.map((entry) => {
     const providerKeysConnected = entry.providers.every(
       (provider) =>
-        snapshots.get(provider)?.value === formatProviderKey(provider, entry.accessToken),
+        snapshots.get(providerKeyName(provider))?.value ===
+        formatProviderKey(provider, entry.accessToken),
     );
     const accountMatches = expectedAccountId === undefined || entry.accountId === expectedAccountId;
     const connected = providerKeysConnected && accountMatches;
@@ -260,11 +274,14 @@ export async function saveLiheConnection({
       previousKeys: {},
     },
   ]);
-  const snapshots = await readSnapshots(deps, userId, [LIHE_CONNECTION_KEY, ...affectedProviders]);
+  const snapshots = await readSnapshots(deps, userId, [
+    LIHE_CONNECTION_KEY,
+    ...affectedProviders.map(providerKeyName),
+  ]);
   const previousKeys: TLiheStoredConnectionEntry['previousKeys'] = {};
 
   for (const provider of tokenResponse.providers) {
-    const current = snapshots.get(provider) ?? null;
+    const current = snapshots.get(providerKeyName(provider)) ?? null;
     const managedConnection = replacedConnections.find((connection) =>
       connection.providers.includes(provider),
     );
@@ -297,9 +314,14 @@ export async function saveLiheConnection({
         if (incomingProviders.has(provider)) {
           continue;
         }
-        const current = snapshots.get(provider) ?? null;
+        const current = snapshots.get(providerKeyName(provider)) ?? null;
         if (current?.value === formatProviderKey(provider, replaced.accessToken)) {
-          await writeSnapshot(deps, userId, provider, previousSnapshot(replaced, provider));
+          await writeSnapshot(
+            deps,
+            userId,
+            providerKeyName(provider),
+            previousSnapshot(replaced, provider),
+          );
         }
       }
     }
@@ -307,7 +329,7 @@ export async function saveLiheConnection({
       tokenResponse.providers.map((provider) =>
         deps.updateUserKey({
           userId,
-          name: provider,
+          name: providerKeyName(provider),
           value: formatProviderKey(provider, tokenResponse.access_token),
           expiresAt: null,
         }),
@@ -381,7 +403,7 @@ export async function disconnectLiheConnection({
     };
   }
 
-  const names = [LIHE_CONNECTION_KEY, ...disconnectedProviders];
+  const names = [LIHE_CONNECTION_KEY, ...disconnectedProviders.map(providerKeyName)];
   const snapshots = await readSnapshots(deps, userId, names);
   const restoredProviders: TLiheProvider[] = [];
   const preservedProviders: TLiheProvider[] = [];
@@ -390,13 +412,14 @@ export async function disconnectLiheConnection({
     for (const selected of selectedConnections) {
       const providersToDisconnect = provider ? [provider] : selected.providers;
       for (const selectedProvider of providersToDisconnect) {
-        const current = snapshots.get(selectedProvider) ?? null;
+        const keyName = providerKeyName(selectedProvider);
+        const current = snapshots.get(keyName) ?? null;
         if (current?.value !== formatProviderKey(selectedProvider, selected.accessToken)) {
           preservedProviders.push(selectedProvider);
           continue;
         }
         const previous = previousSnapshot(selected, selectedProvider);
-        await writeSnapshot(deps, userId, selectedProvider, previous);
+        await writeSnapshot(deps, userId, keyName, previous);
         if (previous) {
           restoredProviders.push(selectedProvider);
         }

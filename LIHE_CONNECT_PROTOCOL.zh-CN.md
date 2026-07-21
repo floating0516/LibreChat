@@ -1,4 +1,4 @@
-# Lihe 对话站连接协议 v1
+# Lihe 对话站连接协议 v2
 
 本文档是 `api.lihe.chat` 与 `lihe.chat` 的联调契约。API 端和对话站端必须按本文档实现，不得把长期 Token 放进 URL、浏览器存储、前端 JavaScript 日志或访问日志。
 
@@ -12,7 +12,7 @@
 | API 站按钮         | `https://lihe.chat/connect/lihe?api_key_id=<id>`   |
 | OAuth 回调         | `https://lihe.chat/api/integrations/lihe/callback` |
 | 授权范围           | `models:read chat:write`                           |
-| 支持的 Provider 值 | `openAI`、`anthropic`、`google`                    |
+| 支持的 Provider 值 | `openAI`、`anthropic`、`google`、`grok`            |
 
 `client_secret` 由两端管理员通过安全渠道生成和保存，只允许服务器读取。Token 与撤销接口采用 OAuth `client_secret_basic`，即 HTTP `Authorization: Basic base64(client_id:client_secret)`。
 
@@ -143,6 +143,7 @@ API 端必须返回 OpenAI 兼容结构，且至少有一个模型：
 | `openAI`    | `/v1/chat/completions`、`/v1/responses` | `Authorization: Bearer <token>`     |
 | `anthropic` | `/v1/messages`                          | `x-api-key: <token>`                |
 | `google`    | API 端现有的 Gemini 兼容路由            | 按 Gemini SDK 的 API Key 请求头处理 |
+| `grok`      | `/v1/chat/completions`                  | `Authorization: Bearer <token>`     |
 
 API 端收到请求后必须先规范化认证头，再用 Token 安全哈希查询同一条专用 Token 记录，并依次验证：未撤销、账号可用、包含 `chat:write`、当前路由属于 `providers` 白名单。禁止从查询参数读取 Token。
 
@@ -150,6 +151,7 @@ API 端收到请求后必须先规范化认证头，再用 Token 安全哈希查
 - Token 有效但 scope 或 Provider 不允许时返回 `403`。
 - 流式与非流式响应继续沿用 API 站现有协议，不能因为使用专用 Token 而改变 SSE/JSON 格式。
 - `google` 默认不启用；只有 API 端 Gemini 代理、对话站 `GOOGLE_REVERSE_PROXY` 和 Token 请求头适配都完成联调后，才允许在 `providers` 中返回 `google`。
+- `grok` 使用 OpenAI 兼容接口；对话站把 Token 写入固定的 `Grok` 自定义端点，Base URL 仍由管理员配置，不能由浏览器或 Token 响应覆盖。
 
 ## 6. 撤销接口
 
@@ -185,7 +187,7 @@ token_type_hint=access_token
 3. 成功导入后刷新浏览器或重启对话站仍然有效。
 4. 对话站解除绑定后 Token 被撤销，旧 Provider Key 正确恢复。
 5. API 平台主动撤销后，后续聊天请求立即失败且可重新绑定。
-6. OpenAI 与 Anthropic 均能用同一专用 Token 完成一次流式对话；不支持的 Provider 返回 `403`。
+6. OpenAI、Anthropic 与 Grok 均能用对应专用 Token 完成一次流式对话；不支持的 Provider 返回 `403`。
 7. URL、浏览器存储、Cloudflare 日志和两端应用日志中均不存在长期 Token。
 8. 缺失、重复、非规范或超出 int64 范围的 `api_key_id` 被对话站拒绝；其他用户、已删除、已禁用或授权后失效的 Key 被 API 站拒绝，且不能在兑换阶段换绑。
 9. 已绑定 OIDC 用户兑换到缺失或不匹配的 `account_id` 时，对话站不保存 Token，并立即调用撤销接口。

@@ -9,7 +9,7 @@ describe('Lihe Connect configuration', () => {
     process.env.LIHE_CONNECT_API_BASE_URL = 'https://api.lihe.chat';
     process.env.LIHE_CONNECT_CLIENT_ID = 'lihe-chat';
     process.env.LIHE_CONNECT_CLIENT_SECRET = 'test-client-secret';
-    process.env.LIHE_CONNECT_PROVIDERS = 'openAI,anthropic';
+    process.env.LIHE_CONNECT_PROVIDERS = 'openAI,anthropic,grok';
     process.env.JWT_SECRET = 'test-jwt-secret-that-is-long-enough';
     process.env.DOMAIN_CLIENT = 'https://lihe.chat';
     process.env.DOMAIN_SERVER = 'https://lihe.chat';
@@ -29,7 +29,7 @@ describe('Lihe Connect configuration', () => {
     expect(config).toMatchObject({
       clientId: 'lihe-chat',
       scope: 'models:read chat:write',
-      providers: ['openAI', 'anthropic'],
+      providers: ['openAI', 'anthropic', 'grok'],
       requireOpenIdSubject: false,
     });
     expect(config?.authorizationUrl.href).toBe('https://api.lihe.chat/oauth/authorize');
@@ -40,6 +40,11 @@ describe('Lihe Connect configuration', () => {
   it('requires a linked OpenID subject only when explicitly enabled', () => {
     process.env.LIHE_CONNECT_REQUIRE_OPENID_SUBJECT = 'true';
     expect(getLiheConfig()?.requireOpenIdSubject).toBe(true);
+  });
+
+  it('rejects unknown configured providers', () => {
+    process.env.LIHE_CONNECT_PROVIDERS = 'openAI,unknown';
+    expect(getLiheConfig).toThrow(LiheConfigurationError);
   });
 
   it('maps malformed and insecure production URLs to a configuration error', () => {

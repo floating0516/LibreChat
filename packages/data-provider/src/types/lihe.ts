@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const liheProviderSchema = z.enum(['openAI', 'anthropic', 'google']);
+export const liheProviderSchema = z.enum(['openAI', 'anthropic', 'google', 'grok']);
 
 export type TLiheProvider = z.infer<typeof liheProviderSchema>;
 
@@ -26,7 +26,7 @@ export const liheTokenResponseSchema = z.object({
   providers: z
     .array(liheProviderSchema)
     .min(1)
-    .max(3)
+    .max(4)
     .refine((providers) => new Set(providers).size === providers.length),
   account_id: z.string().min(1).max(256).optional(),
   account_label: z.string().min(1).max(256).optional(),
@@ -44,12 +44,13 @@ const lihePreviousKeysSchema = z.object({
   openAI: liheKeySnapshotSchema.optional(),
   anthropic: liheKeySnapshotSchema.optional(),
   google: liheKeySnapshotSchema.optional(),
+  grok: liheKeySnapshotSchema.optional(),
 });
 
 export const liheStoredConnectionEntrySchema = z.object({
   accessToken: z.string().min(16).max(8192),
   scope: z.string().min(1).max(512),
-  providers: z.array(liheProviderSchema).min(1).max(3),
+  providers: z.array(liheProviderSchema).min(1).max(4),
   connectedAt: z.string().datetime(),
   accountId: z.string().min(1).max(256).optional(),
   accountLabel: z.string().min(1).max(256).optional(),
@@ -64,7 +65,7 @@ export const liheStoredConnectionV1Schema = z.object({
 export const liheStoredConnectionV2Schema = z
   .object({
     version: z.literal(2),
-    connections: z.array(liheStoredConnectionEntrySchema).min(1).max(3),
+    connections: z.array(liheStoredConnectionEntrySchema).min(1).max(4),
   })
   .superRefine(({ connections }, ctx) => {
     const seen = new Set<TLiheProvider>();

@@ -171,6 +171,7 @@ jobs:
               if (!provider.liheStartRequestSchema.safeParse({ apiKeyId: "90" }).success) process.exit(1);
               if (provider.liheStartRequestSchema.safeParse({ apiKeyId: "01" }).success) process.exit(1);
               if (!provider.liheDisconnectRequestSchema.safeParse({ provider: "anthropic" }).success) process.exit(1);
+              if (!provider.liheDisconnectRequestSchema.safeParse({ provider: "grok" }).success) process.exit(1);
               if (provider.liheDisconnectRequestSchema.safeParse({ provider: "unknown" }).success) process.exit(1);
             '
 
@@ -270,6 +271,8 @@ jobs:
               test -f /app/api/server/socialLogins.js
               test -f /app/client/src/components/Chat/Input/ToolsDropdown.tsx
               test -f /app/client/src/components/Chat/Input/TokenUsage/index.tsx
+              test -f /app/client/src/components/Chat/Menus/Endpoints/ModelSelectorContext.tsx
+              test -f /app/client/src/utils/thinking.ts
               test ! -e /tmp/librechat-build
               test ! -e /tmp/librechat-patches
               test ! -L /app/client/node_modules/vite
@@ -281,6 +284,7 @@ jobs:
               grep -Rql "nav-panel-tools" /app/client/dist/assets/*.js
               grep -Rql "tools-menu-selection" /app/client/dist/assets/*.js
               grep -Rql "tools-menu-advanced" /app/client/dist/assets/*.js
+              grep -Rql "thinking-model-toggle" /app/client/dist/assets/*.js
               grep -Fq "CONTEXT_USAGE_WARNING_PERCENT = 75" /app/client/src/components/Chat/Input/TokenUsage/index.tsx
               if grep -Eq "PinIcon|isPinned|setIsPinned" \
                 /app/client/src/components/Chat/Input/ToolsDropdown.tsx \

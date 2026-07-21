@@ -12,6 +12,11 @@ import {
 } from '~/hooks';
 import { useAgentsMapContext, useAssistantsMapContext, useLiveAnnouncer } from '~/Providers';
 import { useGetEndpointsQuery, useListAgentsQuery } from '~/data-provider';
+import {
+  getThinkingBaseModel,
+  resolveThinkingModel,
+  isThinkingModelEnabled,
+} from '~/utils/thinking';
 import { useModelSelectorChatContext } from './ModelSelectorChatContext';
 import useSelectMention from '~/hooks/Input/useSelectMention';
 import { filterItems } from './utils';
@@ -58,8 +63,15 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   const agentsMap = useAgentsMapContext();
   const assistantsMap = useAssistantsMapContext();
   const { data: endpointsConfig } = useGetEndpointsQuery();
-  const { endpoint, model, spec, agent_id, assistant_id, getConversation, newConversation } =
-    useModelSelectorChatContext();
+  const {
+    endpoint: conversationEndpoint,
+    model: conversationModel,
+    spec,
+    agent_id,
+    assistant_id,
+    getConversation,
+    newConversation,
+  } = useModelSelectorChatContext();
   const localize = useLocalize();
   const { announcePolite } = useLiveAnnouncer();
   const modelSpecs = useMemo(() => {
@@ -89,12 +101,16 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     },
   );
 
-  const { mappedEndpoints, endpointRequiresUserKey } = useEndpoints({
+  const { mappedEndpoints, modelsConfig, endpointRequiresUserKey } = useEndpoints({
     agents,
     assistantsMap,
     startupConfig,
     endpointsConfig,
   });
+  const displayedConversationModel = useMemo(
+    () => getThinkingBaseModel(modelsConfig?.[conversationEndpoint ?? ''], conversationModel),
+    [conversationEndpoint, conversationModel, modelsConfig],
+  );
 
   const getModelDisplayName = useCallback(
     (endpoint: Endpoint, model: string): string => {
@@ -123,24 +139,24 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
 
   // State
   const [selectedValues, setSelectedValues] = useState<SelectedValues>(() => {
-    let initialModel = model || '';
-    if (isAgentsEndpoint(endpoint) && agent_id) {
+    let initialModel = displayedConversationModel;
+    if (isAgentsEndpoint(conversationEndpoint) && agent_id) {
       initialModel = agent_id;
-    } else if (isAssistantsEndpoint(endpoint) && assistant_id) {
+    } else if (isAssistantsEndpoint(conversationEndpoint) && assistant_id) {
       initialModel = assistant_id;
     }
     return {
-      endpoint: endpoint || '',
+      endpoint: conversationEndpoint || '',
       model: initialModel,
       modelSpec: spec || '',
     };
   });
   useSelectorEffects({
     agentsMap,
-    conversation: endpoint
+    conversation: conversationEndpoint
       ? ({
-          endpoint: endpoint ?? null,
-          model: model ?? null,
+          endpoint: conversationEndpoint ?? null,
+          model: displayedConversationModel || null,
           spec: spec ?? null,
           agent_id: agent_id ?? null,
           assistant_id: assistant_id ?? null,
@@ -189,11 +205,11 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       }
       setSelectedValues({
         endpoint: spec.preset.endpoint,
-        model,
+        model: getThinkingBaseModel(modelsConfig?.[spec.preset.endpoint ?? ''], model),
         modelSpec: spec.name,
       });
     },
-    [onSelectSpec],
+    [modelsConfig, onSelectSpec],
   );
 
   const handleSelectEndpoint = useCallback(
@@ -225,19 +241,41 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
           model: assistantsMap?.[endpoint.value]?.[model]?.model ?? '',
         });
       } else if (endpoint.value) {
-        onSelectEndpoint?.(endpoint.value, { model });
+        const thinkingEnabled = isThinkingModelEnabled(
+          modelsConfig?.[conversationEndpoint ?? ''],
+          conversationModel,
+        );
+        const resolvedModel = resolveThinkingModel(
+          modelsConfig?.[endpoint.value],
+          model,
+          thinkingEnabled,
+        );
+        onSelectEndpoint?.(endpoint.value, { model: resolvedModel });
       }
       setSelectedValues({
         endpoint: endpoint.value,
-        model,
+        model: getThinkingBaseModel(modelsConfig?.[endpoint.value], model),
         modelSpec: '',
       });
 
-      const modelDisplayName = getModelDisplayName(endpoint, model);
+      const modelDisplayName = getModelDisplayName(
+        endpoint,
+        getThinkingBaseModel(modelsConfig?.[endpoint.value], model),
+      );
       const announcement = localize('com_ui_model_selected', { 0: modelDisplayName });
       announcePolite({ message: announcement, isStatus: true });
     },
-    [agentsMap, announcePolite, assistantsMap, getModelDisplayName, localize, onSelectEndpoint],
+    [
+      agentsMap,
+      announcePolite,
+      assistantsMap,
+      conversationEndpoint,
+      conversationModel,
+      getModelDisplayName,
+      localize,
+      modelsConfig,
+      onSelectEndpoint,
+    ],
   );
 
   const value = useMemo(

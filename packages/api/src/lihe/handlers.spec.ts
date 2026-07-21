@@ -16,7 +16,7 @@ describe('Lihe Connect handlers', () => {
     process.env.LIHE_CONNECT_API_BASE_URL = 'https://api.lihe.chat';
     process.env.LIHE_CONNECT_CLIENT_ID = 'lihe-chat';
     process.env.LIHE_CONNECT_CLIENT_SECRET = 'test-client-secret';
-    process.env.LIHE_CONNECT_PROVIDERS = 'openAI,anthropic';
+    process.env.LIHE_CONNECT_PROVIDERS = 'openAI,anthropic,grok';
     process.env.JWT_SECRET = 'test-jwt-secret-that-is-long-enough';
     process.env.DOMAIN_CLIENT = 'https://lihe.chat';
     process.env.DOMAIN_SERVER = 'https://lihe.chat';
@@ -83,7 +83,7 @@ describe('Lihe Connect handlers', () => {
             access_token: 'lhc_handler_token_1234567890',
             token_type: 'Bearer',
             scope: tokenScope,
-            providers: ['openAI', 'anthropic'],
+            providers: ['openAI', 'anthropic', 'grok'],
             account_label: 'Lihe user',
             expires_in: null,
           }),
@@ -153,12 +153,15 @@ describe('Lihe Connect handlers', () => {
     expect(callback.headers.location).toBe('/connect/lihe?result=connected');
     expect(callback.headers.location).not.toContain('lhc_handler_token');
     expect(keys.get('anthropic')?.value).toBe('lhc_handler_token_1234567890');
+    expect(keys.get('Grok')?.value).toBe(
+      JSON.stringify({ apiKey: 'lhc_handler_token_1234567890', baseURL: '' }),
+    );
 
     const status = await agent.get('/api/integrations/lihe/status');
     expect(status.body).toMatchObject({
       enabled: true,
       connected: true,
-      providers: ['openAI', 'anthropic'],
+      providers: ['openAI', 'anthropic', 'grok'],
       accountLabel: 'Lihe user',
       selectionUrl: 'https://api.lihe.chat/integrations/lihe',
     });
@@ -181,10 +184,22 @@ describe('Lihe Connect handlers', () => {
     expect(anthropicDisconnect.status).toBe(200);
     expect(anthropicDisconnect.body).toMatchObject({
       disconnectedProviders: ['anthropic'],
-      remainingProviders: ['openAI'],
+      remainingProviders: ['openAI', 'grok'],
     });
     expect(keys.has('openAI')).toBe(true);
     expect(keys.has('anthropic')).toBe(false);
+    expect(keys.has('Grok')).toBe(true);
+    expect(revocations).toBe(0);
+
+    const grokDisconnect = await agent
+      .post('/api/integrations/lihe/disconnect')
+      .send({ provider: 'grok' });
+    expect(grokDisconnect.status).toBe(200);
+    expect(grokDisconnect.body).toMatchObject({
+      disconnectedProviders: ['grok'],
+      remainingProviders: ['openAI'],
+    });
+    expect(keys.has('Grok')).toBe(false);
     expect(revocations).toBe(0);
 
     const openAIDisconnect = await agent

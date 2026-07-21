@@ -93,6 +93,33 @@ describe('Lihe Connect credential storage', () => {
     expect(keys.has(LIHE_CONNECTION_KEY)).toBe(false);
   });
 
+  it('stores Grok tokens in the OpenAI-compatible custom endpoint key', async () => {
+    const previousGrok = JSON.stringify({ apiKey: 'old-grok', baseURL: '' });
+    const { deps, keys } = createMemoryKeys({
+      Grok: { value: previousGrok, expiresAt: null },
+    });
+    const { connection } = await saveLiheConnection({
+      deps,
+      userId,
+      tokenResponse: tokenResponse(firstToken, ['grok']),
+    });
+
+    expect(keys.has('grok')).toBe(false);
+    expect(keys.get('Grok')?.value).toBe(formatProviderKey('grok', firstToken));
+    await expect(
+      getLiheConnectionStatus({ deps, userId, configuredProviders: ['grok'] }),
+    ).resolves.toMatchObject({ connected: true, providers: ['grok'] });
+
+    const disconnected = await disconnectLiheConnection({
+      deps,
+      userId,
+      connection,
+      provider: 'grok',
+    });
+    expect(disconnected.restoredProviders).toEqual(['grok']);
+    expect(keys.get('Grok')?.value).toBe(previousGrok);
+  });
+
   it('keeps the original backup across a token rotation', async () => {
     const { deps, keys } = createMemoryKeys({
       anthropic: { value: 'original-anthropic', expiresAt: null },

@@ -4,7 +4,7 @@
 ARG LIBRECHAT_BASE_IMAGE=librechat/librechat:v0.8.7@sha256:a950bb5fe847ae3b00797bf02d0b26bcd4c12f27240ebad6fa9eedafefc59d52
 FROM ${LIBRECHAT_BASE_IMAGE}
 
-ARG LIBRECHAT_VERSION=v0.8.7.19
+ARG LIBRECHAT_VERSION=v0.8.7.20
 LABEL org.opencontainers.image.version="${LIBRECHAT_VERSION}"
 
 USER root
@@ -81,6 +81,8 @@ COPY --chown=node:node client/src/routes/index.tsx /app/client/src/routes/index.
 COPY --chown=node:node client/src/routes/Layouts/Startup.tsx /app/client/src/routes/Layouts/Startup.tsx
 COPY --chown=node:node client/src/components/Auth/AuthLayout.tsx /app/client/src/components/Auth/AuthLayout.tsx
 COPY --chown=node:node client/src/hooks/Endpoint/useEndpoints.ts /app/client/src/hooks/Endpoint/useEndpoints.ts
+COPY --chown=node:node client/src/utils/thinking.ts /app/client/src/utils/thinking.ts
+COPY --chown=node:node client/src/components/Chat/Menus/Endpoints/ModelSelectorContext.tsx /app/client/src/components/Chat/Menus/Endpoints/ModelSelectorContext.tsx
 COPY --chown=node:node client/src/components/SidePanel/Parameters/DynamicDropdown.tsx /app/client/src/components/SidePanel/Parameters/DynamicDropdown.tsx
 COPY --chown=node:node client/src/components/SidePanel/Parameters/Panel.tsx /app/client/src/components/SidePanel/Parameters/Panel.tsx
 COPY --chown=node:node client/src/components/Chat/Input/Artifacts.tsx /app/client/src/components/Chat/Input/Artifacts.tsx
